@@ -1,5 +1,7 @@
 # Pattern Workshop Capture
 
+[![Test and deploy](https://github.com/mattwynne/pattern-workshop-capture/actions/workflows/deploy.yml/badge.svg)](https://github.com/mattwynne/pattern-workshop-capture/actions/workflows/deploy.yml)
+
 Mobile-first capture and live progress for the Explore DDD 2026 workshop “Non-Authoritarian Team Practices: a Co-Created Handbook”.
 
 ## Run locally
@@ -18,6 +20,12 @@ Open <http://localhost:8080>. The room dashboard is at <http://localhost:8080/da
 ```sh
 npm run check
 ```
+
+## Deployment
+
+See **[docs/deployment.md](docs/deployment.md)** for the one-time Google Cloud setup, credential permissions, GitHub Actions variables, deployment, rotation, and troubleshooting instructions.
+
+After bootstrap, every push to `main` tests and deploys the application to Cloud Run. Pull requests run checks without deploying.
 
 ## Configuration
 
