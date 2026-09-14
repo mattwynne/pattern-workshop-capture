@@ -12,6 +12,7 @@ The workshop capture application must turn participants’ text, photographs, di
 The capture application and published handbook will be separate systems:
 
 - The capture application will be hosted on Fly.io.
+- OpenRouter will provide speech transcription and image/text interpretation. Model and routing choices will be configurable without code changes.
 - The handbook will be a Hugo site in `mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop`.
 - Possession of the workshop URL is sufficient to submit.
 - A contributor may choose individual attribution, group attribution, or anonymity.
@@ -29,7 +30,8 @@ The capture application and published handbook will be separate systems:
 ## Consequences
 
 - Git is the source of truth for published handbook content; temporary processing state is not a second content store.
-- The capture application needs temporary durable media storage, background processing, GitHub write credentials, and safe retry behaviour.
+- The capture application needs temporary durable media storage, background processing, OpenRouter and GitHub credentials, and safe retry behaviour.
 - Every commit to `main` can trigger Hugo publication, while the dashboard can report progress before a commit exists.
 - Immediate publication and URL-only access deliberately favour workshop flow over moderation machinery.
-- The implementation language and specific transcription, image-interpretation, storage, and deployment services remain separate technical decisions.
+- Participants must be told that OpenRouter processes their submitted media.
+- The implementation language and specific storage service remain separate technical decisions.
