@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3b544">
+  <title>Capture a team practice</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Pattern Workshop</a>
+    <a href="/dashboard.html">Room dashboard →</a>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <p class="eyebrow">Explore DDD 2026</p>
+      <h1>Share a practice</h1>
+      <p>Turn what your group discovered into part of our co-created handbook.</p>
+    </section>
+
+    <form id="pattern-form" novalidate>
+      <div id="capture-step" class="panel">
+        <label>
+          <span class="label">Name</span>
+          <span class="hint">A memorable name for the practice</span>
+          <input id="name" name="name" maxlength="120" required autocomplete="off" placeholder="e.g. Take turns holding the pen">
+        </label>
+        <label>
+          <span class="label">Context</span>
+          <span class="hint">When might this practice be useful?</span>
+          <textarea id="context" name="context" required rows="5"></textarea>
+        </label>
+        <label>
+          <span class="label">Problem</span>
+          <span class="hint">What tension or difficulty does it address?</span>
+          <textarea id="problem" name="problem" required rows="5"></textarea>
+        </label>
+        <label>
+          <span class="label">Solution</span>
+          <span class="hint">What do people actually do?</span>
+          <textarea id="solution" name="solution" required rows="6"></textarea>
+        </label>
+
+        <fieldset>
+          <legend>Who made this?</legend>
+          <div class="choices">
+            <label><input type="radio" name="attributionKind" value="group" checked> A group</label>
+            <label><input type="radio" name="attributionKind" value="individual"> An individual</label>
+            <label><input type="radio" name="attributionKind" value="anonymous"> Anonymous</label>
+          </div>
+          <label id="attribution-name-wrap">
+            <span class="label">Name to show</span>
+            <input id="attributionName" name="attributionName" maxlength="120" placeholder="Your group or name">
+          </label>
+        </fieldset>
+        <button class="primary" type="submit">Review pattern</button>
+      </div>
+
+      <div id="review-step" class="panel" hidden>
+        <p class="step-label">Ready to publish?</p>
+        <article class="review-card">
+          <h2 id="review-name"></h2>
+          <h3>Context</h3><div id="review-context"></div>
+          <h3>Problem</h3><div id="review-problem"></div>
+          <h3>Solution</h3><div id="review-solution"></div>
+          <p id="review-attribution" class="attribution"></p>
+        </article>
+        <p class="notice">Publishing makes this contribution public under CC BY-SA 4.0. Temporary photos and recordings used for interpretation are processed by an AI service but are not published or retained.</p>
+        <div class="actions">
+          <button id="back-button" class="secondary" type="button">← Keep editing</button>
+          <button id="publish-button" class="primary" type="button">Publish to handbook</button>
+        </div>
+      </div>
+
+      <div id="result-step" class="panel result" hidden>
+        <div class="success-mark">✓</div>
+        <h2>Your pattern is joining the handbook</h2>
+        <p id="publish-status">GitHub is publishing the updated site. This can take a minute.</p>
+        <a id="pattern-link" class="primary button-link" target="_blank" rel="noreferrer">Open published pattern →</a>
+        <button id="another-button" class="secondary" type="button">Capture another pattern</button>
+      </div>
+    </form>
+    <p id="error" class="error" role="alert" hidden></p>
+  </main>
+  <script src="/capture.js" type="module"></script>
+</body>
+</html>
