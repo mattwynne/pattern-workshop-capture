@@ -19,6 +19,12 @@ textarea { resize: vertical; line-height: 1.45; }
 fieldset { border: 0; padding: 0; margin: 0 0 1.5rem; }
 .choices { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .65rem 1.2rem; }
 .choices label { border: 2px solid #777b72; border-radius: 100px; padding: .65rem .9rem; background: #fff; cursor: pointer; }
+.optional { color: #596159; font-size: .8rem; font-weight: 600; }
+.avatar-field { padding-block: 1rem; border-block: 1px solid #d1c7b8; }
+.file-picker { display: inline-block !important; border: 2px solid #1e241f; border-radius: .65rem; padding: .8rem 1rem; background: #fff; font-weight: 800; cursor: pointer; }
+.file-picker input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.avatar-preview, .review-avatar { display: block; width: min(100%, 28rem); max-height: 28rem; margin: 1rem auto; object-fit: contain; border-radius: .75rem; background: #eee6d8; }
+.avatar-preview[hidden], .review-avatar[hidden] { display: none; }
 button, .button-link { appearance: none; border: 2px solid #1e241f; border-radius: .65rem; padding: .85rem 1rem; font: inherit; font-weight: 850; cursor: pointer; text-align: center; text-decoration: none; }
 .primary { color: #1e241f; background: #f3b544; box-shadow: .2rem .2rem 0 #1e241f; }
 .primary:disabled { opacity: .5; cursor: wait; }

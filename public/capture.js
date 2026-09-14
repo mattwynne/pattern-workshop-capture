@@ -4,7 +4,7 @@ const reviewStep = document.querySelector('#review-step');
 const resultStep = document.querySelector('#result-step');
 const errorBox = document.querySelector('#error');
 const publishButton = document.querySelector('#publish-button');
-const fields = ['name', 'context', 'problem', 'solution', 'attributionName'];
+const fields = ['name', 'context', 'problem', 'solution', 'attributionName', 'avatarAlt'];
 const storageKey = 'pattern-workshop-draft';
 let draftId;
 let updateTimer;
@@ -16,6 +16,10 @@ function showError(message) {
 
 function currentData() {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function avatarFile() {
+  return document.querySelector('#avatar').files[0];
 }
 
 function saveLocally() {
@@ -70,6 +74,10 @@ function validate() {
       throw new Error(`Please add the ${field}`);
     }
   }
+  if (avatarFile() && !String(data.avatarAlt || '').trim()) {
+    document.querySelector('#avatarAlt').focus();
+    throw new Error('Please add a short description of the picture');
+  }
   if (data.attributionKind !== 'anonymous' && !String(data.attributionName || '').trim()) {
     document.querySelector('#attributionName').focus();
     throw new Error('Please add the individual or group name');
@@ -78,6 +86,10 @@ function validate() {
 }
 
 function showReview(data) {
+  const reviewAvatar = document.querySelector('#review-avatar');
+  const file = avatarFile();
+  reviewAvatar.hidden = !file;
+  if (file) { reviewAvatar.src = URL.createObjectURL(file); reviewAvatar.alt = data.avatarAlt; }
   document.querySelector('#review-name').textContent = data.name;
   for (const field of ['context', 'problem', 'solution']) document.querySelector(`#review-${field}`).textContent = data[field];
   document.querySelector('#review-attribution').textContent = data.attributionKind === 'anonymous' ? 'Anonymous contribution' : `Contributed by ${data.attributionName}`;
@@ -91,6 +103,13 @@ form.addEventListener('input', () => {
   updateTimer = setTimeout(() => updateDraftName(false), 250);
 });
 form.addEventListener('change', updateAttribution);
+document.querySelector('#avatar').addEventListener('change', event => {
+  const file = event.target.files[0];
+  const preview = document.querySelector('#avatar-preview');
+  const altWrap = document.querySelector('#avatar-alt-wrap');
+  preview.hidden = !file; altWrap.hidden = !file;
+  if (file) preview.src = URL.createObjectURL(file);
+});
 form.addEventListener('submit', event => {
   event.preventDefault(); showError('');
   try { showReview(validate()); } catch (error) { showError(error.message); }
@@ -101,10 +120,10 @@ document.querySelector('#back-button').addEventListener('click', () => {
 publishButton.addEventListener('click', async () => {
   showError(''); publishButton.disabled = true; publishButton.textContent = 'Publishing…';
   try {
-    const response = await fetch('/api/patterns', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ captureId: draftId, ...validate() }),
-    });
+    validate();
+    const body = new FormData(form);
+    body.set('captureId', draftId);
+    const response = await fetch('/api/patterns', { method: 'POST', body });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Publication failed');
     localStorage.removeItem(storageKey);

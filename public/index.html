@@ -43,6 +43,21 @@
           <textarea id="solution" name="solution" required rows="6"></textarea>
         </label>
 
+        <fieldset class="avatar-field">
+          <legend>Give it a picture <span class="optional">optional, encouraged</span></legend>
+          <p class="hint">Photograph your group’s drawing or choose an image. This becomes the pattern’s avatar.</p>
+          <label class="file-picker">
+            <span>Take or choose a picture</span>
+            <input id="avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment">
+          </label>
+          <img id="avatar-preview" class="avatar-preview" alt="" hidden>
+          <label id="avatar-alt-wrap" hidden>
+            <span class="label">Describe the picture</span>
+            <span class="hint">A short description for people who cannot see it</span>
+            <input id="avatarAlt" name="avatarAlt" maxlength="240">
+          </label>
+        </fieldset>
+
         <fieldset>
           <legend>Who made this?</legend>
           <div class="choices">
@@ -61,6 +76,7 @@
       <div id="review-step" class="panel" hidden>
         <p class="step-label">Ready to publish?</p>
         <article class="review-card">
+          <img id="review-avatar" class="review-avatar" alt="" hidden>
           <h2 id="review-name"></h2>
           <h3>Context</h3><div id="review-context"></div>
           <h3>Problem</h3><div id="review-problem"></div>

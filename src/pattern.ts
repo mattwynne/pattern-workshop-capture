@@ -8,6 +8,7 @@ export interface PatternInput {
   solution: string;
   attributionKind: AttributionKind;
   attributionName?: string;
+  avatarAlt?: string;
 }
 
 export function slugify(value: string): string {
@@ -45,6 +46,9 @@ export function validatePattern(value: unknown): PatternInput {
     solution: String(input.solution).trim(),
     attributionKind: kind,
     attributionName: kind === "anonymous" ? undefined : String(input.attributionName).trim(),
+    avatarAlt: typeof input.avatarAlt === "string" && input.avatarAlt.trim()
+      ? input.avatarAlt.trim()
+      : undefined,
   };
 }
 
@@ -56,5 +60,6 @@ export function patternMarkdown(pattern: PatternInput): string {
   const attribution = pattern.attributionKind === "anonymous"
     ? "Anonymous"
     : pattern.attributionName!;
-  return `---\ntitle: ${yamlString(pattern.name)}\ndraft: false\ncapture_id: ${yamlString(pattern.captureId)}\nattribution: ${yamlString(attribution)}\nattribution_kind: ${yamlString(pattern.attributionKind)}\n---\n\n## Context\n\n${pattern.context}\n\n## Problem\n\n${pattern.problem}\n\n## Solution\n\n${pattern.solution}\n`;
+  const avatar = pattern.avatarAlt ? `\navatar_alt: ${yamlString(pattern.avatarAlt)}` : "";
+  return `---\ntitle: ${yamlString(pattern.name)}\ndraft: false\ncapture_id: ${yamlString(pattern.captureId)}\nattribution: ${yamlString(attribution)}\nattribution_kind: ${yamlString(pattern.attributionKind)}${avatar}\n---\n\n## Context\n\n${pattern.context}\n\n## Problem\n\n${pattern.problem}\n\n## Solution\n\n${pattern.solution}\n`;
 }

@@ -1,10 +1,13 @@
 import express from "express";
+import multer from "multer";
 import { DraftBoard } from "./drafts.js";
 import type { PatternPublisher } from "./github.js";
+import { normalizeAvatar } from "./image.js";
 import { validatePattern } from "./pattern.js";
 
 export function createApp(publisher: PatternPublisher, board = new DraftBoard()) {
   const app = express();
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 12 } });
   app.use(express.json({ limit: "1mb" }));
   app.use(express.static("public"));
 
@@ -22,13 +25,16 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard())
     const unsubscribe = board.subscribe(response);
     request.on("close", unsubscribe);
   });
-  app.post("/api/patterns", async (request, response) => {
+  app.post("/api/patterns", upload.single("avatar"), async (request, response) => {
     try {
       const pattern = validatePattern(request.body);
       if (!board.update(pattern.captureId, { name: pattern.name, stage: "publishing" })) {
         return response.status(409).json({ error: "This draft expired; reload and try again" });
       }
-      const published = await publisher.publish(pattern);
+      const avatar = request.file
+        ? await normalizeAvatar(request.file.buffer, request.file.mimetype)
+        : undefined;
+      const published = await publisher.publish(pattern, avatar);
       board.update(pattern.captureId, { stage: "published", publicUrl: published.publicUrl });
       response.status(201).json(published);
     } catch (error) {
@@ -37,6 +43,12 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard())
       const validation = /required|Choose|Enter/.test(message);
       response.status(validation ? 400 : 502).json({ error: message });
     }
+  });
+  app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
+    const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? "The avatar must be smaller than 16 MB"
+      : "The upload could not be processed";
+    response.status(400).json({ error: message });
   });
   return app;
 }

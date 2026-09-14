@@ -1,4 +1,5 @@
 import { PatternInput, patternMarkdown, slugify } from "./pattern.js";
+import type { PublicAvatar } from "./image.js";
 
 export interface PublishedPattern {
   slug: string;
@@ -7,7 +8,7 @@ export interface PublishedPattern {
 }
 
 export interface PatternPublisher {
-  publish(pattern: PatternInput): Promise<PublishedPattern>;
+  publish(pattern: PatternInput, avatar?: PublicAvatar): Promise<PublishedPattern>;
 }
 
 interface GitHubPublisherOptions {
@@ -17,6 +18,10 @@ interface GitHubPublisherOptions {
   branch?: string;
   publicBaseUrl: string;
 }
+
+interface RefResponse { object: { sha: string } }
+interface CommitResponse { tree: { sha: string } }
+interface ShaResponse { sha: string }
 
 export class GitHubPublisher implements PatternPublisher {
   private branch: string;
@@ -38,6 +43,12 @@ export class GitHubPublisher implements PatternPublisher {
     });
   }
 
+  private async json<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const response = await this.request(path, init);
+    if (!response.ok) throw new Error(`GitHub request failed (${response.status})`);
+    return response.json() as Promise<T>;
+  }
+
   private async findByCaptureId(captureId: string): Promise<PublishedPattern | null> {
     const query = encodeURIComponent(`repo:${this.options.owner}/${this.options.repo} path:content/patterns ${captureId}`);
     const response = await this.request(`/search/code?q=${query}`);
@@ -46,47 +57,69 @@ export class GitHubPublisher implements PatternPublisher {
     const item = data.items?.[0];
     if (!item) return null;
     const slug = item.path.split("/")[2];
+    return this.result(slug, item.html_url);
+  }
+
+  private result(slug: string, commitUrl: string): PublishedPattern {
     return {
       slug,
-      commitUrl: item.html_url,
+      commitUrl,
       publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, "")}/patterns/${slug}/`,
     };
   }
 
-  async publish(pattern: PatternInput): Promise<PublishedPattern> {
+  private async pathExists(path: string): Promise<boolean> {
+    const response = await this.request(`/repos/${this.options.owner}/${this.options.repo}/contents/${path}?ref=${this.branch}`);
+    if (response.status === 404) return false;
+    if (!response.ok) throw new Error(`GitHub path check failed (${response.status})`);
+    return true;
+  }
+
+  private async createBlob(bytes: Buffer): Promise<string> {
+    const blob = await this.json<ShaResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/blobs`, {
+      method: "POST",
+      body: JSON.stringify({ content: bytes.toString("base64"), encoding: "base64" }),
+    });
+    return blob.sha;
+  }
+
+  async publish(pattern: PatternInput, avatar?: PublicAvatar): Promise<PublishedPattern> {
     const existing = await this.findByCaptureId(pattern.captureId);
     if (existing) return existing;
 
     const root = slugify(pattern.name);
-    const content = Buffer.from(patternMarkdown(pattern), "utf8").toString("base64");
     for (let suffix = 1; suffix <= 100; suffix++) {
       const slug = suffix === 1 ? root : `${root}-${suffix}`;
-      const filePath = `content/patterns/${slug}/index.md`;
-      const response = await this.request(
-        `/repos/${this.options.owner}/${this.options.repo}/contents/${filePath}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            message: `Publish pattern: ${pattern.name}`,
-            content,
-            branch: this.branch,
-          }),
-        },
-      );
-      if (response.ok) {
-        const data = await response.json() as { commit: { html_url: string } };
-        return {
-          slug,
-          commitUrl: data.commit.html_url,
-          publicUrl: `${this.options.publicBaseUrl.replace(/\/$/, "")}/patterns/${slug}/`,
-        };
+      const bundlePath = `content/patterns/${slug}`;
+      if (await this.pathExists(`${bundlePath}/index.md`)) continue;
+
+      const ref = await this.json<RefResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/ref/heads/${this.branch}`);
+      const parent = await this.json<CommitResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/commits/${ref.object.sha}`);
+      const markdownSha = await this.createBlob(Buffer.from(patternMarkdown(pattern), "utf8"));
+      const treeEntries: Array<{ path: string; mode: string; type: string; sha: string }> = [
+        { path: `${bundlePath}/index.md`, mode: "100644", type: "blob", sha: markdownSha },
+      ];
+      if (avatar) {
+        const avatarSha = await this.createBlob(avatar.bytes);
+        treeEntries.push({ path: `${bundlePath}/avatar.${avatar.extension}`, mode: "100644", type: "blob", sha: avatarSha });
       }
-      if (response.status === 422 || response.status === 409) {
+      const tree = await this.json<ShaResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/trees`, {
+        method: "POST", body: JSON.stringify({ base_tree: parent.tree.sha, tree: treeEntries }),
+      });
+      const commit = await this.json<ShaResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/commits`, {
+        method: "POST",
+        body: JSON.stringify({ message: `Publish pattern: ${pattern.name}\n\nCapture-ID: ${pattern.captureId}`, tree: tree.sha, parents: [ref.object.sha] }),
+      });
+      const update = await this.request(`/repos/${this.options.owner}/${this.options.repo}/git/refs/heads/${this.branch}`, {
+        method: "PATCH", body: JSON.stringify({ sha: commit.sha, force: false }),
+      });
+      if (update.ok) return this.result(slug, `https://github.com/${this.options.owner}/${this.options.repo}/commit/${commit.sha}`);
+      if (update.status === 409 || update.status === 422) {
         const duplicate = await this.findByCaptureId(pattern.captureId);
         if (duplicate) return duplicate;
         continue;
       }
-      throw new Error(`GitHub publication failed (${response.status})`);
+      throw new Error(`GitHub publication failed (${update.status})`);
     }
     throw new Error("Could not reserve a unique pattern name");
   }
