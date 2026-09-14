@@ -1,0 +1,2 @@
+# GhostPepper transcript lines use Markdown hard-break spaces; preserve source verbatim.
+docs/notes/*.md whitespace=-trailing-space
