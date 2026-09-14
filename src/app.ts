@@ -3,9 +3,10 @@ import multer from "multer";
 import { DraftBoard } from "./drafts.js";
 import type { PatternPublisher } from "./github.js";
 import { normalizeAvatar } from "./image.js";
+import type { OpenRouter } from "./openrouter.js";
 import { validatePattern } from "./pattern.js";
 
-export function createApp(publisher: PatternPublisher, board = new DraftBoard()) {
+export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 12 } });
   app.use(express.json({ limit: "1mb" }));
@@ -24,6 +25,24 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard())
     response.flushHeaders();
     const unsubscribe = board.subscribe(response);
     request.on("close", unsubscribe);
+  });
+  app.post("/api/interpret/photo", upload.single("photo"), async (request, response) => {
+    if (!ai) return response.status(503).json({ error: "AI interpretation is not configured" });
+    if (!request.file) return response.status(400).json({ error: "Choose a card photo first" });
+    try {
+      response.json({ suggestions: await ai.interpretPhoto(request.file.buffer) });
+    } catch (error) {
+      response.status(502).json({ error: error instanceof Error ? error.message : "Interpretation failed" });
+    }
+  });
+  app.post("/api/interpret/audio", upload.single("audio"), async (request, response) => {
+    if (!ai) return response.status(503).json({ error: "AI interpretation is not configured" });
+    if (!request.file) return response.status(400).json({ error: "Record or choose some audio first" });
+    try {
+      response.json(await ai.interpretSpeech(request.file.buffer, request.file.mimetype));
+    } catch (error) {
+      response.status(502).json({ error: error instanceof Error ? error.message : "Transcription failed" });
+    }
   });
   app.post("/api/patterns", upload.single("avatar"), async (request, response) => {
     try {

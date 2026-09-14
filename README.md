@@ -26,5 +26,9 @@ npm run check
 - `HANDBOOK_REPO` — defaults to `explore-ddd-anti-authoritarian-team-practices-workshop`
 - `HANDBOOK_URL` — defaults to its GitHub Pages URL
 - `PORT` — defaults to `8080`
+- `OPENROUTER_API_KEY` — enables temporary card-photo interpretation and speech transcription
+- `VISION_MODEL` — defaults to `google/gemini-2.5-flash`
+- `TRANSCRIPTION_MODEL` — defaults to `openai/whisper-1`
+- `SYNTHESIS_MODEL` — defaults to `google/gemini-2.5-flash`
 
-Draft form content is retained in the participant's browser. Live dashboard state is deliberately ephemeral in this first release and resets if the capture server restarts.
+Card photos and audio are held only in request memory while OpenRouter processes them; they are neither stored nor published. Draft form content is retained in the participant's browser. Live dashboard state is deliberately ephemeral in this first release and resets if the capture server restarts.

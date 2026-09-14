@@ -1,6 +1,6 @@
 # Capture and publishing architecture
 
-- **Status:** Accepted
+- **Status:** Superseded by `2026-09-14-serverless-direct-publishing-architecture.md`
 - **Date:** 2026-09-14
 
 ## Context

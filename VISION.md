@@ -6,6 +6,8 @@
 
 **Primary source:** [`docs/notes/2026-09-04-matt-elizabeth-idea-for-vibe-coded-app-to-accompany-our-explore-ddd-session.md`](docs/notes/2026-09-04-matt-elizabeth-idea-for-vibe-coded-app-to-accompany-our-explore-ddd-session.md)
 
+> **MVP delivery note:** The accepted serverless architecture deliberately defers durable temporary-media storage. Card photos and audio are processed in request memory and discarded; participant avatars are normalized and only the safe derivative is published. Re-upload after a processing failure is an accepted workshop-MVP trade-off.
+
 ## Vision
 
 Enable a room full of workshop participants to turn handwritten pattern-writing work into a shared, durable online handbook while the workshop is still happening.

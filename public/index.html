@@ -22,6 +22,38 @@
 
     <form id="pattern-form" novalidate>
       <div id="capture-step" class="panel">
+        <section class="capture-tools" aria-labelledby="capture-tools-title">
+          <h2 id="capture-tools-title">Bring in your group’s work</h2>
+          <p class="hint">Optional helpers—everything they suggest remains editable.</p>
+          <div class="tool-grid">
+            <div class="capture-tool">
+              <h3>Photograph a card</h3>
+              <p>We’ll read the writing, then discard the photo.</p>
+              <label class="file-picker">
+                <span>Take or choose photo</span>
+                <input id="card-photo" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment">
+              </label>
+              <button id="interpret-photo" class="secondary compact" type="button" disabled>Suggest fields from photo</button>
+            </div>
+            <div class="capture-tool">
+              <h3>Explain it aloud</h3>
+              <p>Record up to two minutes. Audio is discarded after transcription.</p>
+              <button id="record-audio" class="secondary" type="button">● Start recording</button>
+              <span id="recording-time" class="recording-time" aria-live="polite"></span>
+              <label class="file-picker small-picker">
+                <span>Or choose audio</span>
+                <input id="audio-file" type="file" accept="audio/*">
+              </label>
+              <button id="interpret-audio" class="secondary compact" type="button" disabled>Transcribe and suggest fields</button>
+            </div>
+          </div>
+          <div id="transcript" class="transcript" hidden></div>
+          <div id="suggestions" class="suggestions" hidden>
+            <div class="suggestions-heading"><h3>Suggestions</h3><button id="use-all-suggestions" class="secondary compact" type="button">Use all</button></div>
+            <div id="suggestion-list"></div>
+          </div>
+        </section>
+
         <label>
           <span class="label">Name</span>
           <span class="hint">A memorable name for the practice</span>

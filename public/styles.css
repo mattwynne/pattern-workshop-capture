@@ -10,6 +10,22 @@ a { color: #26553c; font-weight: 700; }
 h1 { font-size: clamp(3rem, 12vw, 6.5rem); letter-spacing: -.06em; line-height: .85; margin: .25em 0; }
 .intro > p:last-child { font-size: 1.2rem; line-height: 1.5; max-width: 36rem; }
 .panel { padding: clamp(1rem, 4vw, 2rem); background: #fffdf8; border: 2px solid #1e241f; border-radius: 1.25rem; box-shadow: .45rem .45rem 0 #e1aa42; }
+.capture-tools { margin: calc(-1 * clamp(1rem, 4vw, 2rem)) calc(-1 * clamp(1rem, 4vw, 2rem)) 2rem; padding: clamp(1rem, 4vw, 2rem); border-bottom: 2px dashed #b9aa92; background: #edf4e9; border-radius: 1.1rem 1.1rem 0 0; }
+.capture-tools > h2 { margin: 0; font-size: 1.5rem; }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin-top: 1rem; }
+.capture-tool { padding: 1rem; border: 1px solid #9aaa94; border-radius: .75rem; background: #fafff8; }
+.capture-tool h3 { margin: 0; }
+.capture-tool p { min-height: 3em; color: #596159; }
+.capture-tool button, .capture-tool .file-picker { width: 100%; margin: .25rem 0; text-align: center; }
+.compact { padding: .55rem .7rem; font-size: .9rem; }
+.small-picker { padding: .55rem .7rem; font-size: .9rem; }
+.recording-time { display: block; min-height: 1.5rem; text-align: center; color: #a33e2b; font-weight: 800; }
+.transcript, .suggestions { margin-top: 1rem; border: 1px solid #9aaa94; border-radius: .75rem; padding: 1rem; background: #fff; }
+.transcript::before { content: "Transcript"; display: block; font-weight: 850; margin-bottom: .4rem; }
+.suggestions-heading, .suggestion-row { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
+.suggestions-heading h3 { margin: .3rem 0; }
+.suggestion-row { padding-block: .75rem; border-top: 1px solid #ddd6c9; }
+.suggestion-row p { margin: .2rem 0 0; white-space: pre-wrap; }
 label:not(.choices label) { display: block; margin-bottom: 1.6rem; }
 .label, legend { display: block; font-size: 1.05rem; font-weight: 850; margin-bottom: .2rem; }
 .hint { display: block; color: #596159; margin-bottom: .55rem; }
@@ -53,4 +69,4 @@ button, .button-link { appearance: none; border: 2px solid #1e241f; border-radiu
 .status.failed { background: #ffe0d8; }
 .empty { font-size: 1.2rem; color: #596159; }
 @keyframes pulse { 50% { opacity: .35; } }
-@media (max-width: 36rem) { .topbar { align-items: flex-start; } .actions > * { width: 100%; } }
+@media (max-width: 36rem) { .topbar { align-items: flex-start; } .actions > * { width: 100%; } .suggestion-row { display: block; } .suggestion-row button { margin-top: .6rem; width: 100%; } }
