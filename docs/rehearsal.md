@@ -594,9 +594,23 @@ publication, physical-device tests or printed-QR scans were performed in this au
   files/processes were removed. This host check does not prove Alpine compatibility.
   The initial smoke fixture used a streaming WAV with unknown length, rejected by
   the strict decoder; the smoke now builds a finite canonical WAV from generated PCM.
-- Docker is unavailable on this host. **Exact-main CI Docker build/execution is
-  awaiting the implementation push**; record the run below after objective validation.
-  No deployed Cloud Run runtime result is inferred from either host or Docker checks.
+- Docker is unavailable on this host. Objective production validation passed in
+  [CI run 34927154488](https://github.com/mattwynne/pattern-workshop-capture/actions/runs/34927154488)
+  for implementation commit `171795dc99be741029cdcd2d46761fde2567da26`, completed
+  2026-09-15 at 04:02 UTC. Both **container** and **test** passed; **deploy** was
+  skipped because cloud variables are absent. CI repeated all 68 unit/API tests,
+  38 browser tests, workflow validation and the four-page/18-link Hugo check.
+  The actual Alpine image installed FFmpeg **8.1.2-r0** and passed the runtime,
+  structured-log allowlist and missing-credential startup checks with no external
+  network. Image ID: `sha256:7fac3328692d394d1b00cfb2d8b0407d236f55984d11596cccf76f141536c7d1`;
+  base Node 24 Alpine digest: `sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81`.
+  The one-day artifact is intentionally temporary; the run log preserves evidence.
+- That run exposed a deprecated Node 20 artifact-action warning. The follow-up
+  pins upload **7.0.1** / download **8.0.1** (both Node 24) and adds a credential-free
+  artifact download/load round trip with image-ID equality before deployment.
+  The [main workflow history](https://github.com/mattwynne/pattern-workshop-capture/actions/workflows/deploy.yml)
+  records the exact follow-up commit's check. No deployed Cloud Run result is
+  inferred from either host or CI Docker checks.
 
 ### Remaining gates / blockers
 
@@ -607,5 +621,6 @@ concurrency/interrupted retry; working OpenRouter credential (prior key returned
 401), credits and successful real-model output; real cards/drawings/noisy recordings;
 physical iPhone/Android/HEIC and accessibility; room Wi-Fi/projector/load; final URL,
 actual printed QR scans; explicit facilitator go/no-go. Local automation cannot
-close these gates. No credential-independent application blocker is known; CI must
-still confirm the production Docker result before this audit is considered validated.
+close these gates. No credential-independent implementation blocker remains; the
+production Docker build/runtime gate passed in CI. Cloud deployment, real-model,
+physical and facilitator release gates remain explicitly pending.

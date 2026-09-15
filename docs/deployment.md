@@ -180,7 +180,8 @@ production readiness. The deploy job remains skipped until cloud variables exist
 with dummy configuration, no external network, a read-only filesystem and the real
 Docker CMD. It checks FFmpeg decoding, Sharp WebP processing, production-only
 modules, static assets, non-default PORT, health, startup failure and log redaction.
-The artifact passed to deployment is that exact image; deployment never rebuilds.
+The artifact is downloaded and loaded again in CI with image-ID equality checked.
+Deployment consumes that exact image and never rebuilds.
 
 To reproduce the Docker gate locally (requires Docker):
 
