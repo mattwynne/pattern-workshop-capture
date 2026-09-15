@@ -1,4 +1,5 @@
 import { requestLogging, jsonLog, type LogSink } from "./logging.js";
+import { AudioValidationError } from "./audio.js";
 import express from "express";
 import multer from "multer";
 import { DraftBoard } from "./drafts.js";
@@ -10,6 +11,7 @@ import { validatePattern } from "./pattern.js";
 export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter, cleanup: typeof cleanAvatar = cleanAvatar, log: LogSink = jsonLog) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 12 } });
+  const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 0, parts: 2 } });
   app.use(requestLogging(log));
   app.use("/api", (_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
   app.use(express.json({ limit: "1mb" }));
@@ -38,13 +40,21 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
       response.status(502).json({ error: "Photo interpretation failed. Try again or enter the fields manually." });
     }
   });
-  app.post("/api/interpret/audio", upload.single("audio"), async (request, response) => {
+  app.post("/api/interpret/audio", audioUpload.single("audio"), async (request, response) => {
     if (!ai) return response.status(503).json({ error: "AI interpretation is not configured" });
     if (!request.file) return response.status(400).json({ error: "Record or choose some audio first" });
+    const controller = new AbortController();
+    const cancel = () => { if (!response.writableEnded) controller.abort(); };
+    response.on("close", cancel);
     try {
-      response.json(await ai.interpretSpeech(request.file.buffer, request.file.mimetype));
+      response.json(await ai.interpretSpeech(request.file.buffer, request.file.mimetype, controller.signal));
     } catch (error) {
-      response.status(502).json({ error: "Transcription failed. Try again or enter the fields manually." });
+      if (!response.destroyed) response.status(error instanceof AudioValidationError ? 400 : 502).json({
+        error: error instanceof AudioValidationError ? error.message : "Transcription failed. Try again or enter the fields manually.",
+      });
+    } finally {
+      response.off("close", cancel);
+      request.file.buffer = Buffer.alloc(0);
     }
   });
   // Request-local only: no raw images, previews or selection state are stored.

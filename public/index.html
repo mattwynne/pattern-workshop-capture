@@ -37,9 +37,11 @@
             </div>
             <div class="capture-tool">
               <h3>Explain it aloud</h3>
-              <p>Record up to two minutes. Audio is discarded after transcription.</p>
+              <p>Record up to two minutes (16 MiB maximum). Audio is discarded after the attempt; failures may need a new recording.</p>
               <button id="record-audio" class="secondary" type="button">● Start recording</button>
-              <span id="recording-time" class="recording-time" aria-live="polite"></span>
+              <span id="recording-time" class="recording-time" role="timer" aria-live="off"></span>
+              <p id="audio-status" role="status" aria-live="polite"></p>
+              <button id="cancel-audio" class="secondary" type="button" hidden>Cancel and discard audio</button>
               <label class="file-picker small-picker">
                 <span>Or choose audio</span>
                 <input id="audio-file" type="file" accept="audio/*">
@@ -47,9 +49,10 @@
               <button id="interpret-audio" class="secondary compact" type="button" disabled>Transcribe and suggest fields</button>
             </div>
           </div>
-          <div id="transcript" class="transcript" hidden></div>
+          <div id="transcript" class="transcript" role="region" aria-label="Transcript" tabindex="0" hidden></div>
           <div id="suggestions" class="suggestions" hidden>
             <div class="suggestions-heading"><h3>Suggestions</h3><button id="use-all-suggestions" class="secondary compact" type="button">Use all</button></div>
+            <p>Using a suggestion replaces that field’s current text. Use all replaces every suggested field.</p>
             <div id="suggestion-list"></div>
           </div>
         </section>

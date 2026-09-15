@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { wav } from "./audio-fixtures.js";
 import sharp from "sharp";
 import { OpenRouter, audioFormat } from "../src/openrouter.js";
 
@@ -30,7 +31,7 @@ test("transcribes speech then produces editable suggestions", async () => {
   ];
   const mockFetch = async () => responses.shift()!;
   const ai = new OpenRouter("secret", "vision-model", "speech-model", "text-model", mockFetch as typeof fetch);
-  const result = await ai.interpretSpeech(Buffer.from("not-real-audio"), "audio/webm");
+  const result = await ai.interpretSpeech(wav(), "audio/wav");
   assert.equal(result.transcript, "We take turns holding the pen.");
   assert.equal(result.suggestions.solution, "Take turns holding the pen.");
 });

@@ -1,3 +1,4 @@
+import { setupAudio } from './audio.js';
 import { setupAvatar } from './avatar.js';
 const avatar = setupAvatar();
 const form = document.querySelector('#pattern-form');
@@ -10,7 +11,6 @@ const fields = ['name', 'context', 'problem', 'solution', 'attributionName', 'av
 const storageKey = 'pattern-workshop-draft';
 let draftId;
 let updateTimer;
-let recordedAudio;
 let suggestions = {};
 
 function showError(message) {
@@ -73,6 +73,8 @@ function validate() {
 }
 
 function showReview(data) {
+  interpretationVersion++;
+  audio.discard('Audio discarded for review.');
   const reviewAvatar = document.querySelector('#review-avatar');
   avatar.review(reviewAvatar, data.avatarAlt);
   document.querySelector('#review-name').textContent = data.name;
@@ -85,6 +87,7 @@ function showReview(data) {
 }
 
 function renderSuggestions(next) {
+  next = Object.fromEntries(Object.entries(next || {}).filter(([key, value]) => ['name', 'context', 'problem', 'solution'].includes(key) && typeof value === 'string' && value.trim()));
   suggestions = next;
   const list = document.querySelector('#suggestion-list');
   list.replaceChildren(...Object.entries(next).filter(([, value]) => value).map(([field, value]) => {
@@ -93,23 +96,33 @@ function renderSuggestions(next) {
     const label = document.createElement('strong'); label.textContent = field[0].toUpperCase() + field.slice(1);
     const text = document.createElement('p'); text.textContent = value; copy.append(label, text);
     const use = document.createElement('button'); use.type = 'button'; use.className = 'secondary compact'; use.textContent = `Use ${field}`;
-    use.addEventListener('click', () => { document.querySelector(`#${field}`).value = value; saveLocally(); updateDraftName(false); });
+    use.addEventListener('click', () => { document.querySelector(`#${field}`).value = value; use.disabled = true; delete suggestions[field]; saveLocally(); updateDraftName(false); });
     row.append(copy, use); return row;
   }));
   document.querySelector('#suggestions').hidden = list.children.length === 0;
 }
 
-async function interpretFile(endpoint, fieldName, file, button) {
+function clearResults() {
+  renderSuggestions({});
+  const transcript = document.querySelector('#transcript'); transcript.textContent = ''; transcript.hidden = true;
+}
+let interpretationVersion = 0;
+async function interpretFile(endpoint, fieldName, file, button, signal, isCurrent = () => true) {
+  const generation = ++interpretationVersion;
+  const current = () => generation === interpretationVersion && isCurrent() && !signal?.aborted;
+  clearResults();
   showError(''); button.disabled = true; const original = button.textContent; button.textContent = 'Working…';
   try {
     const body = new FormData(); body.append(fieldName, file, file.name || `${fieldName}.webm`);
-    const response = await fetch(endpoint, { method: 'POST', body });
+    const response = await fetch(endpoint, { method: 'POST', body, signal });
     const result = await response.json();
+    if (!current()) return;
     if (!response.ok) throw new Error(result.error || 'Interpretation failed');
     if (result.transcript) { const transcript = document.querySelector('#transcript'); transcript.textContent = result.transcript; transcript.hidden = false; }
     renderSuggestions(result.suggestions);
-  } catch (error) { showError(error.message); }
-  finally { button.disabled = false; button.textContent = original; }
+    if (result.warning) showError(result.warning);
+  } catch (error) { if (generation === interpretationVersion && isCurrent()) showError(signal?.aborted ? 'Transcription timed out. Record again or enter the fields manually.' : error.message); }
+  finally { if (!signal) { button.disabled = false; button.textContent = original; } }
 }
 
 form.addEventListener('input', () => { saveLocally(); clearTimeout(updateTimer); updateTimer = setTimeout(() => updateDraftName(false), 250); });
@@ -123,42 +136,11 @@ photoButton.addEventListener('click', () => interpretFile('/api/interpret/photo'
 
 document.querySelector('#use-all-suggestions').addEventListener('click', () => {
   for (const [field, value] of Object.entries(suggestions)) if (value) document.querySelector(`#${field}`).value = value;
-  saveLocally(); updateDraftName(false);
+  renderSuggestions({}); saveLocally(); updateDraftName(false);
 });
 
-const audioInput = document.querySelector('#audio-file');
-const audioButton = document.querySelector('#interpret-audio');
-audioInput.addEventListener('change', () => { recordedAudio = undefined; audioButton.disabled = !audioInput.files[0]; });
-audioButton.addEventListener('click', () => {
-  const file = recordedAudio || audioInput.files[0];
-  if (file) interpretFile('/api/interpret/audio', 'audio', file, audioButton);
-});
-
-const recordButton = document.querySelector('#record-audio');
-const recordingTime = document.querySelector('#recording-time');
-let recorder;
-let recordTimer;
-recordButton.addEventListener('click', async () => {
-  if (recorder?.state === 'recording') { recorder.stop(); return; }
-  showError('');
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const preferred = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
-    recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined);
-    const chunks = []; let seconds = 0;
-    recorder.addEventListener('dataavailable', event => { if (event.data.size) chunks.push(event.data); });
-    recorder.addEventListener('stop', () => {
-      clearInterval(recordTimer); stream.getTracks().forEach(track => track.stop());
-      recordedAudio = new File(chunks, `explanation.${recorder.mimeType.includes('mp4') ? 'm4a' : recorder.mimeType.includes('ogg') ? 'ogg' : 'webm'}`, { type: recorder.mimeType });
-      audioButton.disabled = false; recordButton.textContent = '● Record again'; recordingTime.textContent = `Recorded ${seconds}s`;
-    });
-    recorder.start(); recordButton.textContent = '■ Stop recording'; recordingTime.textContent = 'Recording 0:00 / 2:00';
-    recordTimer = setInterval(() => {
-      seconds += 1; recordingTime.textContent = `Recording ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} / 2:00`;
-      if (seconds >= 120) recorder.stop();
-    }, 1000);
-  } catch { stream?.getTracks().forEach(track => track.stop()); showError('Microphone access was not available. You can choose an audio file instead.'); }
+const audio = setupAudio({ showError, clearResults: () => { interpretationVersion++; clearResults(); },
+  interpret: (file, signal, current) => interpretFile('/api/interpret/audio', 'audio', file, document.querySelector('#interpret-audio'), signal, current),
 });
 
 document.querySelector('#back-button').addEventListener('click', () => { reviewStep.hidden = true; captureStep.hidden = false; document.querySelector('#name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });

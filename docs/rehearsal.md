@@ -373,3 +373,76 @@ and retry with the same capture ID. Browser-local text survives reload; media ma
 need reselection. After a server restart, reload restores text into a new live draft;
 first check Git/the handbook for any ambiguous earlier publication to avoid creating
 a second capture of the same work.
+
+## Iteration 004 local implementation audit — 2026-09-15
+
+**Result:** Locally implementable Iteration 004 gaps fixed and audited. Status stays
+**Implemented locally**; workshop decision stays **NO-GO**. No live OpenRouter call,
+credential lookup, real microphone, physical phone, noisy room or live publication
+was required or attempted. Other iterations' delivery gates are unchanged.
+
+- Scope: read the Iteration 004 plan, ledger, rehearsal record, browser recording and
+  suggestion code, adapter, upload handling and all existing tests. The [plan audit
+  matrix](plans/004-transcribe-and-use-a-spoken-explanation.md#local-implementation-audit--2026-09-15)
+  maps each planned behaviour/criterion to implementation, evidence and pending gates.
+- Fixed missing cancel, permission-request races, stale recording/result reuse,
+  recorder start/error/empty/track-end cases, hidden-page/pagehide/review cleanup,
+  client request deadlines, server disconnect cancellation, ambiguous validation
+  errors and synthesis failure losing an otherwise usable transcript. Explicit
+  per-field and apply-all actions are allowlisted; applying all skips suggestions
+  already consumed so it preserves subsequent manual edits to those fields.
+- Replaced permissive metadata-only duration checking (including its five-second
+  grace and unreadable/unknown-duration bypass) with bounded FFmpeg decoding through
+  stdin/stdout. Accepted container data becomes 16 kHz mono PCM/WAV; decoded samples
+  enforce 120 seconds, with a 15-second processing deadline and 16 MiB upload bound.
+  Multipart audio accepts one file and no extra fields. Raw metadata and participant
+  filenames are not sent to the provider. Browser MIME-less/generic file uploads
+  can be recognised from container signatures; unsupported types fail clearly.
+- Runtime dependency: FFmpeg **6.1.1** installed and exercised on this host. Dockerfile
+  installs FFmpeg in the runtime image; CI installs it before tests. The obsolete
+  music-metadata dependency was removed. Docker is unavailable on this host, so
+  image build/execution and deployed FFmpeg behaviour remain pending; local binary
+  tests do not prove the Alpine image or Cloud Run environment works.
+- Privacy evidence is deterministic test assertions plus code inspection: Multer
+  memory storage; decoder pipes and pipe-only protocol allowlist; no media filesystem
+  paths, audio persistence calls or publisher calls in interpretation; redacted logs;
+  no audio/transcript/private filename on the dashboard or in browser draft storage;
+  only explicitly applied field text becomes draft/publication content. Request buffer
+  references are released after completion; browser selections/chunks/tracks/timers
+  are discarded appropriately. This is not a forensic memory-erasure guarantee or a
+  new filesystem trace, and cannot establish provider-side retention policy.
+- Synthetic coverage includes valid generated WAV, duration-less WebM/Opus,
+  fragmented MP4/AAC, Ogg/Opus, AAC and MP3; malformed/disguised/empty/oversized inputs;
+  exactly 120-second WAV acceptance and over-limit WAV/WebM/MP4 rejection; API extra
+  field/file rejection; configurable model/payload handling; 429/503, malformed,
+  empty and wrong-type responses; actual abort-signal deadlines and disconnects;
+  transcript retained when synthesis fails. Provider responses are doubles.
+- Browser coverage uses Chromium with a mobile viewport and deterministic recorder
+  doubles for MP4/WebM negotiation, permission/cancel races, final stop chunks,
+  timer cap, empty/start/error/track-end states, page lifecycle/review cleanup,
+  oversized file fallback, timeout/stale response handling, explicit application,
+  preservation of later edits, and manual publication to a stub publisher. The
+  existing real Chromium MediaRecorder test uses an oscillator and real multipart
+  API/FFmpeg/adapter with a stub provider. This is not an iPhone/Android recording.
+- Mobile accessibility checks cover status/alert output, a non-announcing elapsed
+  timer, keyboard controls, transcript labelling, 320px overflow and axe WCAG A/AA.
+  Manual VoiceOver/TalkBack, zoom/touch and noisy-room usability remain pending.
+
+Validation on the final implementation:
+
+- `npm run check`: TypeScript build and **59 tests passed**.
+- `npm run test:browser`: **35 tests passed**, including **14** dedicated audio
+  regression cases plus all existing browser checks.
+- `HUGO_BIN=/tmp/hugo-007/hugo npm run check:hugo`: passed, four HTML pages and
+  18 local links/assets; existing section/taxonomy layout warnings unchanged.
+- `node --check public/audio.js`, `node --check public/capture.js` and
+  `git diff --check`: passed. No audio fixture binaries are tracked; fixtures are
+  generated in memory. No application credentials were used by these checks.
+
+**Remaining gates / blockers:** working OpenRouter credential and real transcription
+endpoint/model validation (the earlier supplied credential returned 401 in Iteration
+003); real recordings and synthesis quality/latency; physical iPhone Safari and
+Android Chrome microphone/library formats and permissions; room noise; real phone
+call/lock/background/network interruptions; VoiceOver/TalkBack and manual mobile
+accessibility; runtime image/deployed decoder verification. None blocks the requested
+local audit, commit or push. No live/model/device gate is marked passed by these tests.

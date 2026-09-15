@@ -6,7 +6,7 @@ Mobile-first capture and live progress for the Explore DDD 2026 workshop “Non-
 
 ## Run locally
 
-Requires Node.js 22+ and a GitHub token with write access to the handbook repository.
+Requires FFmpeg on PATH (for bounded in-memory audio decoding), Node.js 22+ and a GitHub token with write access to the handbook repository.
 
 ```sh
 npm install

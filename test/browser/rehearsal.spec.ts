@@ -6,6 +6,7 @@ import { createApp } from '../../src/app.js';
 import { OpenRouter } from '../../src/openrouter.js';
 import { DraftBoard } from '../../src/drafts.js';
 import type { PatternPublisher } from '../../src/github.js';
+import { wav } from '../audio-fixtures.js';
 import { diagramFixture } from '../diagram-fixtures.js';
 
 let server: Server, base: string, board: DraftBoard;
@@ -31,7 +32,7 @@ for (const mode of ['typed', 'photo', 'audio']) for (const attribution of ['grou
     await page.locator(`[name=attributionKind][value=${attribution}]`).check();
     if (attribution !== 'anonymous') await page.locator('#attributionName').fill('Table seven');
     if (mode !== 'typed') {
-      await page.locator(mode === 'photo' ? '#card-photo' : '#audio-file').setInputFiles({ name: mode === 'photo' ? 'card.png' : 'speech.webm', mimeType: mode === 'photo' ? 'image/png' : 'audio/webm', buffer: mode === 'photo' ? await diagramFixture('marker') : Buffer.from('synthetic recording') });
+      await page.locator(mode === 'photo' ? '#card-photo' : '#audio-file').setInputFiles({ name: mode === 'photo' ? 'card.png' : 'speech.wav', mimeType: mode === 'photo' ? 'image/png' : 'audio/wav', buffer: mode === 'photo' ? await diagramFixture('marker') : wav() });
       await page.locator(`#interpret-${mode}`).click();
       await expect(page.locator('#suggestions')).toBeVisible();
       await expect(page.locator('#name')).toHaveValue('Authored name');
@@ -107,6 +108,7 @@ test('browser MediaRecorder captures synthetic audio, stops tracks and offers su
     navigator.mediaDevices.getUserMedia = async () => destination.stream;
   });
   await page.locator('#record-audio').click(); await expect(page.locator('#recording-time')).toContainText('Recording');
+  await page.waitForTimeout(300); // Let the real encoder produce an audio packet.
   await page.getByRole('button', { name: '■ Stop recording', exact: true }).click();
   await expect(page.locator('#recording-time')).toContainText('Recorded');
   expect(await page.evaluate(() => (window as any).rehearsalStream.getTracks().every((track: MediaStreamTrack) => track.readyState === 'ended'))).toBeTruthy();

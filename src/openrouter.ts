@@ -1,5 +1,6 @@
 import sharp from "sharp";
-import { parseBuffer } from "music-metadata";
+import { normalizeAudio } from "./audio.js";
+export { audioFormat } from "./audio.js";
 
 export interface PatternSuggestions {
   name?: string;
@@ -11,6 +12,7 @@ export interface PatternSuggestions {
 export interface SpeechInterpretation {
   transcript: string;
   suggestions: PatternSuggestions;
+  warning?: string;
 }
 
 type Fetch = typeof fetch;
@@ -31,12 +33,13 @@ export class OpenRouter {
     private transcriptionModel = "openai/whisper-1",
     private synthesisModel = "google/gemini-2.5-flash",
     private fetcher: Fetch = fetch,
+    private timeoutMs = 60_000,
   ) {}
 
-  private async callChat(model: string, content: unknown): Promise<PatternSuggestions> {
+  private async callChat(model: string, content: unknown, signal?: AbortSignal): Promise<PatternSuggestions> {
     const response = await this.fetcher("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.any([AbortSignal.timeout(this.timeoutMs), ...(signal ? [signal] : [])]),
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
@@ -53,6 +56,7 @@ export class OpenRouter {
     if (!text) throw new Error("AI interpretation returned no suggestions");
     try {
       const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error();
       return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => Object.hasOwn(schema.properties, key) && typeof value === "string" && value.trim())) as PatternSuggestions;
     } catch {
       throw new Error("AI interpretation returned an unexpected response");
@@ -74,37 +78,24 @@ export class OpenRouter {
     ]);
   }
 
-  async interpretSpeech(bytes: Buffer, mimeType: string): Promise<SpeechInterpretation> {
-    const format = audioFormat(mimeType);
-    if (!format) throw new Error("This audio format is not supported");
-    try {
-      const metadata = await parseBuffer(bytes, { mimeType, size: bytes.length }, { duration: true });
-      if (metadata.format.duration && metadata.format.duration > 125) {
-        throw new Error("Recordings must be two minutes or shorter");
-      }
-    } catch (error) {
-      if (error instanceof Error && /two minutes/.test(error.message)) throw error;
-      // Some browser MediaRecorder containers omit duration metadata. Their client-side timer still enforces the limit.
-    }
+  async interpretSpeech(bytes: Buffer, mimeType: string, signal?: AbortSignal): Promise<SpeechInterpretation> {
+    const audio = await normalizeAudio(bytes, mimeType, signal);
     const response = await this.fetcher("https://openrouter.ai/api/v1/audio/transcriptions", {
       method: "POST",
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.any([AbortSignal.timeout(this.timeoutMs), ...(signal ? [signal] : [])]),
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: this.transcriptionModel, input_audio: { data: bytes.toString("base64"), format } }),
+      body: JSON.stringify({ model: this.transcriptionModel, input_audio: { data: audio.toString("base64"), format: "wav" } }),
     });
     if (!response.ok) throw new Error(`Speech transcription failed (${response.status})`);
     const result = await response.json() as { text?: string };
-    if (!result.text?.trim()) throw new Error("Speech transcription returned no text");
+    if (typeof result.text !== "string" || !result.text.trim()) throw new Error("Speech transcription returned no text");
     const transcript = result.text.trim();
-    const suggestions = await this.callChat(this.synthesisModel, `Turn this spoken workshop explanation into suggested Name, Context, Problem, and Solution fields. Preserve the speaker's meaning and wording. Do not invent missing details; use an empty string when the explanation does not provide a field.\n\nTranscript:\n${transcript}`);
-    return { transcript, suggestions };
+    try {
+      const suggestions = await this.callChat(this.synthesisModel, `Turn this spoken workshop explanation into suggested Name, Context, Problem, and Solution fields. Preserve the speaker's meaning and wording. Do not invent missing details; use an empty string when the explanation does not provide a field.\n\nTranscript:\n${transcript}`, signal);
+      return { transcript, suggestions };
+    } catch {
+      if (signal?.aborted) throw new Error("Transcription cancelled");
+      return { transcript, suggestions: {}, warning: "The transcript is ready, but field suggestions failed. Use the transcript to edit your fields manually." };
+    }
   }
-}
-
-export function audioFormat(mimeType: string): string | null {
-  const type = mimeType.toLowerCase().split(";")[0];
-  return ({
-    "audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp3": "mp3",
-    "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/aac": "aac", "audio/wav": "wav", "audio/x-wav": "wav",
-  } as Record<string, string>)[type] ?? null;
 }
