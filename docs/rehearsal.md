@@ -1,9 +1,67 @@
-# Iteration 007 rehearsal and release record
+# Workshop rehearsal and release record
 
 ## Decision: NO-GO for the workshop until live gates pass
 
 Local release hardening is implemented. This is not evidence of deployed-cloud,
 real-model, or physical-device readiness. Do not mark the iteration Done yet.
+
+## Iteration 001 live typed publication — 2026-09-15
+
+**Result:** Real typed capture-to-GitHub-to-Pages publication passed from the local
+application. This evidence completes that part of Iteration 001 only; cloud
+application deployment, OpenRouter and physical-device validation were not performed.
+The workshop decision remains **NO-GO**, and Iteration 001 remains **Implemented locally**.
+
+- Operator: Codex on Matt's host, at the user's direction; UTC 2026-09-15.
+- Capture application: `dc8f95bc33ebd4f476112c5e9b5f5aabf3ab147c` (clean before the run), Node 24.18.0,
+  built with `npm run build`, real `src/server.ts` entrypoint at local port 18081.
+  Chromium used the Pixel 7 viewport; this was not a physical phone.
+- Authentication: existing host GitHub CLI credentials, read through a subprocess
+  pipe and supplied to the server in memory. No token values were printed or written
+  into rehearsal files. A dedicated production publishing token remains pending.
+- Fixture: **TEMPORARY REHEARSAL Iteration 001 2026-09-15**, anonymous attribution,
+  synthetic Name/Context/Problem/Solution only; no participant data or media.
+  Its Context explicitly identified it as a temporary operator rehearsal.
+- Browser flow: entered all four fields; observed the provisional name on the live
+  dashboard; reloaded and verified the fields survived; reviewed the exact fields
+  and anonymous attribution; clicked **Publish to handbook**. The real multipart
+  API returned HTTP 201 at 01:32:03 UTC. Result and dashboard links matched the
+  returned public URL, and the local draft was cleared after publication.
+- Publication: [handbook commit df7d3983bfcba9d5b5f864be4bea2788eaa945dd](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/commit/df7d3983bfcba9d5b5f864be4bea2788eaa945dd),
+  directly on `main`, parent `b78895ee30cfa075c0ebeda475494e8204806d97`.
+  GitHub's commit API confirmed exactly two added files: the page bundle's `index.md`
+  and its atomic capture receipt. The capture UUID was
+  `fdfaa7f0-946c-4a02-8e5f-31937e8cb086`; the Markdown matched the reviewed text.
+- Deployment: [Publish handbook run 34917647418](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/actions/runs/34917647418)
+  used that exact publication SHA. Both build and deploy succeeded; deploy finished
+  at 01:32:25 UTC.
+- Rendered verification at 01:33:07 UTC: the [temporary page](https://mattwynne.github.io/explore-ddd-anti-authoritarian-team-practices-workshop/patterns/temporary-rehearsal-iteration-001-2026-09-15/)
+  returned HTTP 200. Chromium verified the title, all three body fields and Anonymous
+  attribution. The handbook homepage returned HTTP 200 and its pattern link opened
+  that rendered page. This URL is intentionally removed by cleanup below.
+- Cleanup: [handbook commit aaa188cb7d7ee97b4da19946f476bf3bf3314cea](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/commit/aaa188cb7d7ee97b4da19946f476bf3bf3314cea)
+  was pushed directly to `main` and deletes only the temporary bundle's `index.md`.
+  The non-rendered `.workshop-captures/eddbbf8378a032a836ccc21c78334ea7e1d4d7cc26a02346634649b3d63aff49.json`
+  receipt is deliberately retained for retry safety. Compared with the original
+  handbook parent, this one-line receipt is the only remaining Git change.
+- Cleanup deployment: [Publish handbook run 34917726067](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/actions/runs/34917726067)
+  used the exact cleanup SHA; build and deploy succeeded, finishing at 01:33:43 UTC.
+  At 01:34:27 UTC a fresh Chromium browser observed HTTP 404 at the original
+  temporary URL, HTTP 200 at the homepage, and no temporary title or pattern link
+  on the homepage. GitHub's commit API confirmed that cleanup removed only the
+  temporary Markdown file and had the publication commit as its sole parent.
+- Checks rerun: `npm run check` passed all 43 tests and TypeScript build;
+  `npm run test:browser` passed all 21 tests; `HUGO_BIN=/tmp/hugo-007/hugo npm run check:hugo`
+  passed using Hugo extended 0.150.0 (four HTML pages, 18 local links/assets).
+  Existing missing section/taxonomy layout warnings remain as described below.
+  The live test exposed no application defect, so no implementation fix or new
+  regression test was needed. The one-off browser probe's exact homepage-link
+  assertion was corrected to include its existing Anonymous accessible text.
+
+This run did not exercise live simultaneous submissions, interrupted-response
+retries, image publishing, deployed-cloud boundaries, real models, or physical
+phones. Those broader release gates remain pending; local race/retry coverage is
+not evidence that they were exercised against GitHub in this run.
 
 ## Reproducible local evidence
 
@@ -82,7 +140,7 @@ passed. The QR round-trip check is included in the 43-test suite.
   to a log. SSE duration logs appear when the response finishes, not on every event.
   Generic error messages keep external exceptions out of participant responses.
 
-## Facilitated release gates (all pending)
+## Facilitated release gates (none fully complete)
 
 Record operator, UTC date, app commit/revision, handbook commit, devices and observed
 results for each gate. Use a clearly labelled real rehearsal pattern and retain its
@@ -91,7 +149,7 @@ Git/Pages links as evidence; do not publish test participant data without review
 | Gate | Required evidence | Status |
 | --- | --- | --- |
 | Cloud bootstrap and deployment | Project/billing, Secret Manager, WIF deploy, exact image revision, `/health` | Pending: Google credentials/configuration unavailable |
-| GitHub publishing and Pages | Real token, simultaneous submissions, retry after interrupted response, final page/selected image | Pending: dedicated publishing token and deployed integration |
+| GitHub publishing and Pages | Real token, simultaneous submissions, retry after interrupted response, final page/selected image | Partial: Iteration 001 local-app typed publication and Pages cleanup verified above; dedicated publishing token, deployed integration, live concurrency/interrupted retry and image checks remain pending |
 | OpenRouter | Cards, real recordings, configured model IDs, credits, latency, failure fallback | Pending: OpenRouter credentials |
 | iPhone Safari and Android Chrome | Camera/library, HEIC, original/cleaned human review, photo suggestions, recorder/file fallback, attribution, review, public page | Pending: physical devices |
 | Accessibility | VoiceOver/TalkBack, keyboard, zoom, touch targets and readable errors in room conditions | Pending: physical/manual review |

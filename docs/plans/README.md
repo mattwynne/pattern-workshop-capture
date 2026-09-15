@@ -13,7 +13,7 @@ This ledger is the source of truth for delivery status. Update it whenever a pla
 
 | Iteration | Plan | Status | Implemented | Still to do |
 | --- | --- | --- | --- | --- |
-| 001 | [Publish a reviewed typed pattern](001-deploy-and-validate-the-mobile-ai-spike.md) | **Implemented locally** | Public Hugo handbook; mobile form; browser-local draft recovery; review; attribution; direct GitHub publishing; lifecycle API | Bootstrap Google Cloud; deploy; run a real capture-to-Pages test; test physical phones (branch races covered locally in 007) |
+| 001 | [Publish a reviewed typed pattern](001-deploy-and-validate-the-mobile-ai-spike.md) | **Implemented locally** | Public Hugo handbook; mobile form; browser-local draft recovery; review; attribution; direct GitHub publishing; lifecycle API; real typed capture-to-Pages publication and cleanup verified ([evidence](../rehearsal.md#iteration-001-live-typed-publication--2026-09-15)) | Bootstrap Google Cloud; deploy and validate deployed app; test physical phones (branch races covered locally in 007) |
 | 002 | [Publish a participant-supplied pattern avatar](002-publish-a-reviewed-typed-pattern.md) | **Implemented locally** | Camera/library input; required alt text; bounded metadata-free WebP; atomic Markdown-and-image Git commit; handbook rendering | Real GitHub integration test with an avatar; physical-device checks (Hugo and malformed/oversized upload checks now automated) |
 | 003 | [Interpret temporary card photographs](003-interpret-and-publish-card-photos.md) | **Implemented locally** | Temporary request-memory processing; image normalization; configurable OpenRouter vision call; structured suggestions; per-field/apply-all controls | Configure production OpenRouter key; validate model output using real workshop cards; physical mobile camera checks (synthetic error paths now automated) |
 | 004 | [Transcribe a temporary spoken explanation](004-transcribe-and-use-a-spoken-explanation.md) | **Implemented locally** | `MediaRecorder`; MIME negotiation; two-minute browser timer; file fallback; temporary transcription; transcript-to-field suggestions | Validate OpenRouter transcription with real recordings; test iPhone/Android formats, room noise, permissions and interruption (126-second WAV rejection now automated) |
@@ -26,6 +26,6 @@ This ledger is the source of truth for delivery status. Update it whenever a pla
 1. Iteration 007 local checks are complete; release remains blocked on the live gates in [the rehearsal record](../rehearsal.md). Review Iteration 005 cleanup with real workshop drawings; comparison/selection is implemented and automated checks pass.
 2. Run `scripts/bootstrap-google-cloud.sh` with the Google project and billing account.
 3. Let CI deploy the application and verify `/health`.
-4. Exercise actual GitHub publishing and OpenRouter models end to end.
+4. Complete deployed GitHub publishing gates and OpenRouter model checks. Iteration 001 typed publishing from the local app to live Pages passed; see [evidence](../rehearsal.md#iteration-001-live-typed-publication--2026-09-15).
 5. Run the physical-device and room-concurrency rehearsal.
 6. Mark an iteration **Done** only after its remaining workshop-critical checks pass.
