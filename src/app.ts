@@ -2,11 +2,11 @@ import express from "express";
 import multer from "multer";
 import { DraftBoard } from "./drafts.js";
 import type { PatternPublisher } from "./github.js";
-import { normalizeAvatar } from "./image.js";
+import { avatarPreviews, cleanAvatar, normalizeAvatar } from "./image.js";
 import type { OpenRouter } from "./openrouter.js";
 import { validatePattern } from "./pattern.js";
 
-export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter) {
+export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter, cleanup: typeof cleanAvatar = cleanAvatar) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 12 } });
   app.use(express.json({ limit: "1mb" }));
@@ -44,9 +44,23 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
       response.status(502).json({ error: error instanceof Error ? error.message : "Transcription failed" });
     }
   });
+  // Request-local only: no raw images, previews or selection state are stored.
+  app.post("/api/avatars/previews", upload.single("avatar"), async (request, response) => {
+    response.set("Cache-Control", "no-store");
+    if (!request.file) return response.status(400).json({ error: "Choose a picture first" });
+    try {
+      const previews = await avatarPreviews(request.file.buffer, request.file.mimetype, cleanup);
+      const dataUrl = (image: typeof previews.original) => `data:image/webp;base64,${image.bytes.toString("base64")}`;
+      response.json({ original: dataUrl(previews.original), cleaned: previews.cleaned ? dataUrl(previews.cleaned) : undefined, warning: previews.warning });
+    } catch (error) {
+      response.status(400).json({ error: error instanceof Error ? error.message : "Choose another image" });
+    }
+  });
   app.post("/api/patterns", upload.single("avatar"), async (request, response) => {
     try {
       const pattern = validatePattern(request.body);
+      if (request.file && !pattern.avatarAlt) throw new Error("A picture description is required");
+      if (!request.file) pattern.avatarAlt = undefined;
       if (!board.update(pattern.captureId, { name: pattern.name, stage: "publishing" })) {
         return response.status(409).json({ error: "This draft expired; reload and try again" });
       }

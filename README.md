@@ -19,7 +19,11 @@ Open <http://localhost:8080>. The room dashboard is at <http://localhost:8080/da
 
 ```sh
 npm run check
+npx playwright install --with-deps chromium # once per development environment
+npm run test:browser
 ```
+
+The browser suite uses mobile Chromium emulation and a local stub publisher; it never writes to GitHub. CI runs both suites. Physical iPhone/Android checks remain necessary.
 
 ## Deployment
 
@@ -40,3 +44,12 @@ After bootstrap, every push to `main` tests and deploys the application to Cloud
 - `SYNTHESIS_MODEL` — defaults to `google/gemini-2.5-flash`
 
 Card photos and audio are held only in request memory while OpenRouter processes them; they are neither stored nor published. Draft form content is retained in the participant's browser. Live dashboard state is deliberately ephemeral in this first release and resets if the capture server restarts.
+
+
+## Avatar comparison
+
+`POST /api/avatars/previews` accepts one multipart `avatar` (up to 16 MiB). It returns metadata-free WebP data URLs in `original` and optional `cleaned`, plus a `warning` if cleanup fails. Responses are not cacheable; the service retains no image state.
+
+The browser defaults to the original, keeps both previews only in page memory for comparison, and sends **only the selected bytes** as the multipart `avatar` to `POST /api/patterns`, with reviewed `avatarAlt`. The server independently validates and normalizes that image before passing it to the publisher. There is no treatment flag or server-side preview token to expire. Reloading requires choosing the picture again. Raw and unselected images never enter the handbook bundle.
+
+Cleanup keeps the full frame and gently lifts the background. Automatic crop/deskew is deferred to avoid removing faint marks or changing intentionally slanted drawings; see the [Iteration 005 decision and validation record](docs/plans/005-publish-original-and-cleaned-diagrams.md).

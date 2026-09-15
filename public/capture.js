@@ -1,3 +1,5 @@
+import { setupAvatar } from './avatar.js';
+const avatar = setupAvatar();
 const form = document.querySelector('#pattern-form');
 const captureStep = document.querySelector('#capture-step');
 const reviewStep = document.querySelector('#review-step');
@@ -17,7 +19,7 @@ function showError(message) {
 }
 
 function currentData() { return Object.fromEntries(new FormData(form).entries()); }
-function avatarFile() { return document.querySelector('#avatar').files[0]; }
+function avatarFile() { return avatar.selected(); }
 function saveLocally() { localStorage.setItem(storageKey, JSON.stringify({ draftId, ...currentData(), avatar: undefined })); }
 
 async function createDraft() {
@@ -55,6 +57,7 @@ function updateAttribution() {
 }
 
 function validate() {
+  avatar.validate();
   const data = currentData();
   for (const field of ['name', 'context', 'problem', 'solution']) {
     if (!String(data[field] || '').trim()) { document.querySelector(`#${field}`).focus(); throw new Error(`Please add the ${field}`); }
@@ -70,8 +73,7 @@ function validate() {
 
 function showReview(data) {
   const reviewAvatar = document.querySelector('#review-avatar');
-  const file = avatarFile(); reviewAvatar.hidden = !file;
-  if (file) { reviewAvatar.src = URL.createObjectURL(file); reviewAvatar.alt = data.avatarAlt; }
+  avatar.review(reviewAvatar, data.avatarAlt);
   document.querySelector('#review-name').textContent = data.name;
   for (const field of ['context', 'problem', 'solution']) document.querySelector(`#review-${field}`).textContent = data[field];
   document.querySelector('#review-attribution').textContent = data.attributionKind === 'anonymous' ? 'Anonymous contribution' : `Contributed by ${data.attributionName}`;
@@ -110,11 +112,6 @@ async function interpretFile(endpoint, fieldName, file, button) {
 form.addEventListener('input', () => { saveLocally(); clearTimeout(updateTimer); updateTimer = setTimeout(() => updateDraftName(false), 250); });
 form.addEventListener('change', updateAttribution);
 form.addEventListener('submit', event => { event.preventDefault(); showError(''); try { showReview(validate()); } catch (error) { showError(error.message); } });
-
-document.querySelector('#avatar').addEventListener('change', event => {
-  const file = event.target.files[0]; const preview = document.querySelector('#avatar-preview'); const altWrap = document.querySelector('#avatar-alt-wrap');
-  preview.hidden = !file; altWrap.hidden = !file; if (file) preview.src = URL.createObjectURL(file);
-});
 
 const photoInput = document.querySelector('#card-photo');
 const photoButton = document.querySelector('#interpret-photo');
@@ -164,10 +161,10 @@ document.querySelector('#back-button').addEventListener('click', () => { reviewS
 publishButton.addEventListener('click', async () => {
   showError(''); publishButton.disabled = true; publishButton.textContent = 'Publishing…';
   try {
-    validate(); const body = new FormData(form); body.set('captureId', draftId);
+    validate(); const body = new FormData(form); body.set('captureId', draftId); avatar.append(body);
     const response = await fetch('/api/patterns', { method: 'POST', body }); const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Publication failed');
-    localStorage.removeItem(storageKey); reviewStep.hidden = true; resultStep.hidden = false;
+    avatar.discard(); localStorage.removeItem(storageKey); reviewStep.hidden = true; resultStep.hidden = false;
     const link = document.querySelector('#pattern-link'); link.href = result.publicUrl; window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (error) { showError(error.message); publishButton.disabled = false; publishButton.textContent = 'Try publishing again'; }
 });

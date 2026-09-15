@@ -82,7 +82,20 @@
             <span>Take or choose a picture</span>
             <input id="avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment">
           </label>
-          <img id="avatar-preview" class="avatar-preview" alt="" hidden>
+          <p id="avatar-status" class="hint" role="status" aria-live="polite"></p>
+          <fieldset id="avatar-comparison" hidden>
+            <legend>Choose the picture to publish</legend>
+            <p class="hint">Check that every mark still looks right. Only your selected picture is published; location and camera metadata are removed.</p>
+            <div class="avatar-options">
+              <label><input id="avatar-original-choice" aria-label="Original" type="radio" name="avatarChoice" value="original" checked> Original
+                <img id="avatar-preview" class="avatar-preview" alt="Original picture for comparison">
+              </label>
+              <label><input id="avatar-cleaned-choice" aria-label="Gently cleaned" type="radio" name="avatarChoice" value="cleaned" disabled> Gently cleaned
+                <img id="avatar-cleaned" class="avatar-preview" alt="Gently cleaned picture for comparison" hidden>
+              </label>
+            </div>
+          </fieldset>
+          <button id="remove-avatar" class="secondary compact" type="button">Remove picture</button>
           <label id="avatar-alt-wrap" hidden>
             <span class="label">Describe the picture</span>
             <span class="hint">A short description for people who cannot see it</span>
