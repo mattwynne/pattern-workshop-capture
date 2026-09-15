@@ -1,3 +1,4 @@
+import { DraftBoard, probePage } from "./drafts.js";
 import { createApp } from "./app.js";
 import { GitHubPublisher } from "./github.js";
 import { OpenRouter } from "./openrouter.js";
@@ -19,4 +20,4 @@ const ai = process.env.OPENROUTER_API_KEY
     )
   : undefined;
 const port = Number(process.env.PORT ?? 8080);
-createApp(publisher, undefined, ai).listen(port, "0.0.0.0", () => console.log(JSON.stringify({ event: "server_started", port })));
+createApp(publisher, new DraftBoard(probePage), ai).listen(port, "0.0.0.0", () => console.log(JSON.stringify({ event: "server_started", port })));

@@ -93,9 +93,11 @@ test('dashboard reconnects to full state and renders hostile titles as text', as
   await page.goto(`${base}/dashboard.html`);
   await expect(page.getByRole('status')).toHaveText('Live from the room');
   await context.setOffline(true); server.closeAllConnections(); await expect(page.getByRole('status')).toContainText('Reconnecting');
-  const draft = board.create(); board.update(draft.id, { name: '<img src=x onerror=alert(1)>', stage: 'published', publicUrl: 'https://handbook.test/patterns/new/' });
+  const draft = board.create()!; board.update(draft.id, { name: '<img src=x onerror=alert(1)>', stage: 'published', publicUrl: 'https://handbook.test/patterns/new/' });
   await context.setOffline(false);
-  await expect(page.getByRole('heading', { name: '<img src=x onerror=alert(1)>', exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('status')).toHaveText('Live from the room', { timeout: 15000 });
+  while (await page.locator('#next-page').isEnabled()) await page.locator('#next-page').click();
+  await expect(page.getByRole('heading', { name: '<img src=x onerror=alert(1)>', exact: true })).toBeVisible();
   expect(await page.locator('#board img').count()).toBe(0);
   await expect(page.getByRole('status')).toHaveText('Live from the room');
 });

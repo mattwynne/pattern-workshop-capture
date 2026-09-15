@@ -10,6 +10,7 @@ import { validatePattern } from "./pattern.js";
 
 export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter, cleanup: typeof cleanAvatar = cleanAvatar, log: LogSink = jsonLog) {
   const app = express();
+  const inFlight = new Set<string>();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 12 } });
   const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 0, parts: 2 } });
   app.use(requestLogging(log));
@@ -18,12 +19,20 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
   app.use(express.static("public"));
 
   app.get("/health", (_request, response) => response.json({ ok: true }));
-  app.post("/api/drafts", (_request, response) => response.status(201).json(board.create()));
+  app.post("/api/drafts", (request, response) => {
+    const id = request.body?.id;
+    if (id !== undefined && (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))) return response.status(400).json({ error: 'Invalid draft ID' });
+    const draft = board.create(id);
+    return draft ? response.status(201).json(draft) : response.status(503).json({ error: 'The room board is full or the draft ID is invalid. Your text remains in this browser.' });
+  });
   app.patch("/api/drafts/:id", (request, response) => {
-    const name = typeof request.body.name === "string" ? request.body.name.trim().slice(0, 120) : undefined;
-    const draft = board.update(request.params.id, name ? { name } : {});
+    const name = typeof request.body?.name === "string" ? request.body?.name.trim().slice(0, 120) : undefined;
+    const draft = board.update(request.params.id, name !== undefined ? { name } : {});
     if (!draft) return response.status(404).json({ error: "Draft not found; start again" });
     response.json(draft);
+  });
+  app.post('/api/drafts/:id/recheck', (request, response) => {
+    response.status(board.retryPages(request.params.id) ? 202 : 409).json({ message: 'Check the room dashboard for publication status.' });
   });
   app.get("/api/dashboard/events", (request, response) => {
     response.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store, no-transform", Connection: "keep-alive" });
@@ -71,8 +80,12 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
   });
   app.post("/api/patterns", upload.single("avatar"), async (request, response) => {
     let validated = false;
+    let activeId: string | undefined;
     try {
       const pattern = validatePattern(request.body);
+      if (inFlight.has(pattern.captureId)) return response.status(409).json({ error: 'This draft is already publishing. Wait before retrying.' });
+      activeId = pattern.captureId;
+      inFlight.add(activeId);
       if (request.file && !pattern.avatarAlt) throw new Error("A picture description is required");
       if (!request.file) pattern.avatarAlt = undefined;
       if (!board.update(pattern.captureId, { name: pattern.name, stage: "publishing" })) {
@@ -83,14 +96,14 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
         : undefined;
       validated = true;
       const published = await publisher.publish(pattern, avatar);
-      board.update(pattern.captureId, { stage: "published", publicUrl: published.publicUrl });
+      board.committed(pattern.captureId, published.publicUrl);
       response.status(201).json(published);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Publication failed";
-      if (request.body?.captureId) board.update(request.body.captureId, { stage: "failed" });
+      if (activeId) board.update(activeId, { stage: "failed" });
       const validation = !validated && /required|Choose|Enter/.test(message);
       response.status(validation ? 400 : 502).json({ error: validation ? message : "Publication could not be confirmed. Try publishing again; your draft is safe." });
-    }
+    } finally { if (activeId) inFlight.delete(activeId); }
   });
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"

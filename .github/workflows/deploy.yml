@@ -89,6 +89,7 @@ jobs:
             --concurrency 80 \
             --memory 1Gi \
             --cpu 1 \
+            --no-cpu-throttling \
             --timeout 300 \
             --quiet
           URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"

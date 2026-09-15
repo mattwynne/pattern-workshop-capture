@@ -8,7 +8,7 @@ import { diagramFixture } from './diagram-fixtures.js';
 
 const details = { name: 'Public title', context: 'SECRET context', problem: 'SECRET problem', solution: 'SECRET solution', attributionKind: 'individual', attributionName: 'SECRET person' };
 test('50 HTTP clients publish 100 patterns with live dashboard convergence, reconnect and privacy', { timeout: 30000 }, async t => {
-  const board = new DraftBoard(), logs: unknown[] = [];
+  const board = new DraftBoard(async () => true), logs: unknown[] = [];
   const server = createApp({ async publish(p) { return { slug: p.captureId, publicUrl: `https://handbook.test/patterns/${p.captureId}/`, commitUrl: 'https://github.test/commit' }; } }, board, undefined, undefined, record => logs.push(record)).listen(0);
   await new Promise<void>(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -39,6 +39,7 @@ test('50 HTTP clients publish 100 patterns with live dashboard convergence, reco
         assert.equal(response.status, 201);
       }
     }));
+    for (let tick = 0; tick < 20; tick++) { await board.checkPages(); await new Promise(resolve => setImmediate(resolve)); }
     const elapsed = performance.now() - start;
     t.diagnostic(`50 clients / 100 patterns / 5 live subscribers: ${Math.round(elapsed)}ms locally (stub publisher)`);
     assert.ok(elapsed < 15000, 'local rehearsal must finish within 15 seconds');
@@ -54,7 +55,8 @@ test('50 HTTP clients publish 100 patterns with live dashboard convergence, reco
     const publishLog = logs.find((record: any) => record.route === '/api/patterns') as any;
     assert.equal(publishLog.status, 201); assert.ok(publishLog.requestId); assert.equal(typeof publishLog.durationMs, 'number');
   } finally {
-    controllers.forEach(controller => controller.abort()); await Promise.all(consumers);
+    controllers.forEach(controller => controller.abort()); await Promise.allSettled(consumers);
+    board.dispose();
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
   }
 });
@@ -71,7 +73,7 @@ for (const mode of ['photo', 'audio']) {
       const response = await fetch(`${base}/api/interpret/${mode}`, { method: 'POST', body: form });
       assert.equal(response.status, 502); assert.equal(response.headers.get('cache-control'), 'no-store'); assert.ok(!(await response.text()).includes('SECRET'));
       assert.equal(published.length, 0); assert.equal(board.all().length, 0);
-      const draft = board.create();
+      const draft = board.create()!;
       assert.equal((await fetch(`${base}/api/patterns`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...details, captureId: draft.id }) })).status, 201);
       assert.equal((published[0] as any)[1], undefined); assert.ok(!JSON.stringify(logs).includes('SECRET'));
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
@@ -100,7 +102,7 @@ test('server rejects a generated 126-second WAV before calling OpenRouter', asyn
 });
 
 test('published dashboard cards cannot regress after late edits or failed retries', () => {
-  const board = new DraftBoard(), draft = board.create();
+  const board = new DraftBoard(), draft = board.create()!;
   board.update(draft.id, { name: 'Reviewed name', stage: 'published', publicUrl: 'https://handbook.test/pattern' });
   board.update(draft.id, { name: 'Late provisional name' });
   board.update(draft.id, { stage: 'failed' });
@@ -115,7 +117,7 @@ test('slow dashboard subscribers are disconnected before unbounded buffering', (
 });
 
 test('publisher exceptions cannot leak details through validation-looking messages', async () => {
-  const board = new DraftBoard(); const draft = board.create();
+  const board = new DraftBoard(); const draft = board.create()!;
   const server = createApp({ async publish() { throw new Error('SECRET token required'); } }, board, undefined, undefined, () => {}).listen(0);
   await new Promise<void>(resolve => server.once('listening', resolve));
   try {

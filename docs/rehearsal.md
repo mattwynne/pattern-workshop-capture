@@ -338,8 +338,8 @@ passed. The QR round-trip check is included in the 43-test suite.
 - Dashboard state resets on restart; reconnect gets a full current snapshot.
   Published cards cannot regress from late form edits or failed retries. Heartbeats
   run every 15 seconds and clients exceeding 1 MiB of queued data are disconnected.
-  EventSource retries automatically. This is a small-room board with no durable
-  history or unlimited-session capacity guarantee.
+  EventSource retries automatically. Iteration 006 now caps the board at 200 cards
+  and 60 subscribers, with no durable history or automatic workshop rollover.
 - Draft names and stages are public on the dashboard. Bodies, attribution, audio,
   photos and credentials are excluded. API responses are marked `no-store`.
   The app holds temporary media only in request memory; provider-side retention is
@@ -370,9 +370,9 @@ Git/Pages links as evidence; do not publish test participant data without review
 Use the manual text form when AI is unavailable. If publication or internet access
 is down, keep the same browser draft open and retain paper cards; wait for recovery
 and retry with the same capture ID. Browser-local text survives reload; media may
-need reselection. After a server restart, reload restores text into a new live draft;
-first check Git/the handbook for any ambiguous earlier publication to avoid creating
-a second capture of the same work.
+need reselection. After a server restart, reload restores text into a recreated room entry with the
+same capture UUID. Retry an ambiguous publication with that UUID so the existing
+Git receipt resolves to the original page. The room history itself is not restored.
 
 ## Iteration 004 local implementation audit — 2026-09-15
 
@@ -446,3 +446,89 @@ Android Chrome microphone/library formats and permissions; room noise; real phon
 call/lock/background/network interruptions; VoiceOver/TalkBack and manual mobile
 accessibility; runtime image/deployed decoder verification. None blocks the requested
 local audit, commit or push. No live/model/device gate is marked passed by these tests.
+
+## Iteration 006 local implementation audit — 2026-09-15
+
+**Result:** Iteration 006 is implemented and audited locally. Status remains
+**Implemented locally**, and workshop decision remains **NO-GO**. Started at verified
+`9256f17` on clean `main`; no other iteration was implemented or re-audited. Tests
+use local HTTP servers, synthetic participant data and injected publishers/Pages
+responses. No Google Cloud, OpenRouter, live handbook writes or physical devices
+were required. Pushing the capture repository is separate from these local tests.
+
+The [scope and acceptance matrix](plans/006-project-live-capture-progress.md#local-implementation-audit--2026-09-15)
+maps every item to evidence and pending gates.
+
+### Changes and findings
+
+- Fixed premature Published status at Git commit. The API's HTTP 201 continues to
+  acknowledge the Git commit; the board waits for a successful public-page HEAD
+  request before displaying Published and a link. A 404, network failure, redirect
+  or timeout cannot confirm publication. This verifies reachability at that moment,
+  not exact deployment SHA/content or permanent future availability.
+- Added distinct saving/waiting/delayed states. Concurrent retries cannot regress
+  an active save; late name edits freeze once saving starts; committed cards cannot
+  regress to failed/drafting; confirmed cards remain published. Pages checks have
+  five-second network deadlines, five requests per five-second tick and twelve
+  attempts per card. Recheck resumes delayed checks without republishing to Git.
+  No sensitive provider error or commit diagnostics enter the board.
+- Browser name updates now serialize, debounce only name edits, coalesce newer
+  text, clear empty names, retry failures and recover on reconnect. After loss of
+  ephemeral server state, browser recovery reuses the saved UUID, preserving the
+  existing publisher receipt's retry identity. Text remains browser-local.
+- Board snapshots are allowlisted, copied and bounded. Capacity is 200 cards,
+  120-code-unit names, 2048-character HTTPS URLs and 60 subscribers. Allocation
+  beyond capacity returns 503 without evicting published history. Each subscriber
+  has a one-MiB write-queue ceiling; close/error/overflow removes the listener and
+  heartbeat. This bounds board state, not total process memory used by concurrent
+  media requests. No durable board storage or multi-instance coordination exists.
+- Twelve cards per projection page keeps 100 cards reachable through nine pages.
+  Counts and manual navigation avoid squeezing 100 titles onto one screen or
+  moving focused controls automatically. Existing card nodes preserve link focus
+  through updates. Mobile falls back to a scrollable single column with the same
+  navigation. EventSource is required for live updates; unsupported browsers show
+  an explicit message. Disconnection retains the last snapshot with a reconnect
+  notice; a new full snapshot replaces obsolete state.
+- Existing one-warm-instance/max-one/concurrency-80 deployment settings remain;
+  always-allocated CPU was added for background Pages checks after a response.
+  This configuration was inspected, not deployed. A revision rollout can still
+  split in-memory boards; avoid mid-workshop deployments. SSE readers consume
+  Cloud Run request slots. Use one process for one workshop and restart deliberately
+  between workshops; no automatic expiry/rollover was added.
+
+### Validation
+
+- `npm run check`: TypeScript build and **64 unit/API tests passed**.
+- `npm run test:browser`: **38 Chromium browser tests passed**.
+- After adding screenshots and the explicit recheck-route assertion, the dedicated
+  dashboard browser suite (**3 tests**) and DraftBoard/API suite (**5 tests**) passed.
+- Load test: **50 simultaneous HTTP clients, 100 patterns and five SSE readers**;
+  all converge to confirmed full snapshots, including a reconnected reader. Private
+  bodies, transcripts, attribution, headers and query markers are absent from board
+  snapshots/logs. The local 15-second completion budget passed. Git and Pages are
+  deterministic doubles, so these timings exclude external latency and quotas.
+- An initial load run compressed twenty logical Pages ticks without allowing socket
+  I/O and triggered the bounded slow-reader disconnect. The final deterministic
+  rehearsal yields one event-loop turn between those ticks. Cleanup now aborts
+  readers before disposing the board, including on assertion failure. Normal Node
+  write backpressure is tolerated up to the byte ceiling; it is not itself a reason
+  to disconnect a healthy reader. Slow/closed/error/capacity cases have separate tests.
+- Browser evidence includes independent capture/dashboard pages, empty-name update,
+  offline recovery, serialized stale-name/404 recovery, saved capture-ID preservation,
+  Git-versus-Pages status/link gating, full reconnect, escaped hostile names, stable
+  keyboard focus, 100-pattern pagination and axe WCAG A/AA at 320px. Screenshots of
+  the 1920×1080 projection and 320px mobile board were visually inspected; no title
+  clipping or horizontal overflow was observed for the synthetic fixtures. Generated
+  screenshots remain under ignored `test-results/`, not committed participant media.
+- `HUGO_BIN=/tmp/hugo-007/hugo npm run check:hugo`: passed, four HTML pages and
+  18 local links/assets against pinned Hugo/handbook fixtures. Existing missing
+  section/taxonomy layout warnings remain. This is not proof of live Pages deployment.
+- `node --check public/dashboard.js`, `node --check public/capture.js` and
+  `git diff --check`: passed. Full regression suites were run because shared capture
+  and API paths changed; their execution does not reopen other iteration audits.
+
+**Remaining gates / blockers:** deployed single-instance Cloud Run behaviour,
+background CPU and request-timeout/reconnect behaviour, real Pages integration,
+real room Wi-Fi/load and physical phone/projector readability, room-distance
+contrast and manual keyboard/screen-reader checks. None blocks the local Iteration
+006 audit, commit or push. No deployed or physical gate is marked passed.

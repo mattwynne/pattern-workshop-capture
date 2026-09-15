@@ -11,6 +11,10 @@ const fields = ['name', 'context', 'problem', 'solution', 'attributionName', 'av
 const storageKey = 'pattern-workshop-draft';
 let draftId;
 let updateTimer;
+let syncingName = false;
+let nameDirty = false;
+let captureComplete = false;
+let creatingDraft;
 let suggestions = {};
 
 function showError(message) {
@@ -23,9 +27,14 @@ function avatarFile() { return avatar.selected(); }
 function saveLocally() { localStorage.setItem(storageKey, JSON.stringify({ draftId, ...currentData(), avatar: undefined })); }
 
 async function createDraft() {
-  const response = await fetch('/api/drafts', { method: 'POST' });
-  if (!response.ok) throw new Error('Could not start a draft');
-  const draft = await response.json(); draftId = draft.id; saveLocally();
+  if (creatingDraft) return creatingDraft;
+  creatingDraft = (async () => {
+    const response = await fetch('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: draftId }), signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error('Could not start a room draft. Your text stays in this browser.');
+    const draft = await response.json(); draftId = draft.id;
+    if (!captureComplete) saveLocally();
+  })();
+  try { await creatingDraft; } finally { creatingDraft = undefined; }
 }
 
 async function restoreOrCreateDraft() {
@@ -40,17 +49,31 @@ async function restoreOrCreateDraft() {
     }
   }
   if (!draftId) await createDraft();
-  updateAttribution(); await updateDraftName(true);
+  updateAttribution(); await updateDraftName();
 }
 
-async function updateDraftName(createIfMissing = false) {
-  const name = document.querySelector('#name').value.trim();
-  if (!draftId) return;
-  const response = await fetch(`/api/drafts/${draftId}`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name || 'Untitled pattern' }),
-  });
-  if (response.status === 404 && createIfMissing) { await createDraft(); return updateDraftName(false); }
+async function updateDraftName() {
+  if (captureComplete) return;
+  nameDirty = true;
+  if (syncingName) return;
+  syncingName = true;
+  try {
+    if (!draftId) await createDraft();
+    while (nameDirty && !captureComplete) {
+      nameDirty = false;
+      const name = document.querySelector('#name').value.trim();
+      const response = await fetch(`/api/drafts/${draftId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }), signal: AbortSignal.timeout(10000),
+      });
+      if (response.status === 404) { await createDraft(); nameDirty = true; }
+      else if (!response.ok) throw new Error('Room update unavailable');
+    }
+  } catch {
+    // Form text remains local; retry the latest name, never an old queued value.
+    clearTimeout(updateTimer); updateTimer = setTimeout(() => updateDraftName(), 3000);
+  } finally { syncingName = false; }
 }
+addEventListener('online', () => updateDraftName());
 
 function updateAttribution() {
   const kind = document.querySelector('[name="attributionKind"]:checked').value;
@@ -96,7 +119,7 @@ function renderSuggestions(next) {
     const label = document.createElement('strong'); label.textContent = field[0].toUpperCase() + field.slice(1);
     const text = document.createElement('p'); text.textContent = value; copy.append(label, text);
     const use = document.createElement('button'); use.type = 'button'; use.className = 'secondary compact'; use.textContent = `Use ${field}`;
-    use.addEventListener('click', () => { document.querySelector(`#${field}`).value = value; use.disabled = true; delete suggestions[field]; saveLocally(); updateDraftName(false); });
+    use.addEventListener('click', () => { document.querySelector(`#${field}`).value = value; use.disabled = true; delete suggestions[field]; saveLocally(); updateDraftName(); });
     row.append(copy, use); return row;
   }));
   document.querySelector('#suggestions').hidden = list.children.length === 0;
@@ -125,7 +148,7 @@ async function interpretFile(endpoint, fieldName, file, button, signal, isCurren
   finally { if (!signal) { button.disabled = false; button.textContent = original; } }
 }
 
-form.addEventListener('input', () => { saveLocally(); clearTimeout(updateTimer); updateTimer = setTimeout(() => updateDraftName(false), 250); });
+form.addEventListener('input', event => { saveLocally(); if (event.target.id === 'name') { clearTimeout(updateTimer); updateTimer = setTimeout(() => updateDraftName(), 250); } });
 form.addEventListener('change', updateAttribution);
 form.addEventListener('submit', event => { event.preventDefault(); showError(''); try { showReview(validate()); } catch (error) { showError(error.message); } });
 
@@ -136,7 +159,7 @@ photoButton.addEventListener('click', () => interpretFile('/api/interpret/photo'
 
 document.querySelector('#use-all-suggestions').addEventListener('click', () => {
   for (const [field, value] of Object.entries(suggestions)) if (value) document.querySelector(`#${field}`).value = value;
-  renderSuggestions({}); saveLocally(); updateDraftName(false);
+  renderSuggestions({}); saveLocally(); updateDraftName();
 });
 
 const audio = setupAudio({ showError, clearResults: () => { interpretationVersion++; clearResults(); },
@@ -150,9 +173,18 @@ publishButton.addEventListener('click', async () => {
     validate(); const body = new FormData(form); body.set('captureId', draftId); avatar.append(body);
     const response = await fetch('/api/patterns', { method: 'POST', body }); const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Publication failed');
+    captureComplete = true; clearTimeout(updateTimer);
     avatar.discard(); localStorage.removeItem(storageKey); reviewStep.hidden = true; resultStep.hidden = false;
     const link = document.querySelector('#pattern-link'); link.href = result.publicUrl; link.focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (error) { showError(error.message); publishButton.disabled = false; publishButton.textContent = 'Try publishing again'; }
 });
+document.querySelector('#recheck-pages').addEventListener('click', async event => {
+  const button = event.currentTarget; button.disabled = true;
+  try {
+    await fetch(`/api/drafts/${draftId}/recheck`, { method: 'POST', signal: AbortSignal.timeout(10000) });
+    document.querySelector('#publish-status').textContent = 'Check the room dashboard for publication status. Your pattern is already saved to Git.';
+  } catch { showError('Could not check Pages. Try again when connected.'); }
+  finally { button.disabled = false; }
+});
 document.querySelector('#another-button').addEventListener('click', () => location.reload());
-restoreOrCreateDraft().catch(error => showError(error.message));
+restoreOrCreateDraft().catch(error => { showError(error.message); updateDraftName(); });

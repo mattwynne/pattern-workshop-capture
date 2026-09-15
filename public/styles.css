@@ -83,3 +83,15 @@ button, .button-link { appearance: none; border: 2px solid #1e241f; border-radiu
 .review-card, .suggestion-row, .transcript { overflow-wrap: anywhere; }
 .file-picker:focus-within, button:focus-visible, a:focus-visible { outline: 3px solid #26553c; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+/* Twelve readable cards per projection page; mobile uses the same explicit controls. */
+.board-controls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.board-controls button { width: auto; min-height: 44px; }
+.status-card h2 { font-size: 1.4rem; }
+.status-card a { color: inherit; }
+.status.awaiting-pages, .status.publication-delayed { background: #ffe4a6; }
+@media (min-width: 1000px) {
+  .dashboard-shell { width: min(110rem, calc(100% - 3rem)); }
+  .pattern-board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .status-card { min-height: 9rem; }
+}
