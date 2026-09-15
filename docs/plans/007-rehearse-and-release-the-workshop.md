@@ -1,6 +1,6 @@
 # Iteration 007: Rehearse and release the workshop
 
-- **Status:** Planned
+- **Status:** Implemented locally; live release gates pending
 - **Depends on:** Iterations 001–006
 
 ## Outcome
@@ -37,6 +37,13 @@ A realistic rehearsal demonstrates that the complete capture-to-GitHub flow work
 - Hugo clean-build and broken-link checks.
 - Mobile accessibility and viewport review.
 - Facilitated physical-device rehearsal.
+
+## Local verification and release decision
+
+See [the rehearsal record](../rehearsal.md) for reproducible checks, exact scope,
+operational limits and pending evidence. Credential-independent implementation is
+complete. Current release decision is **NO-GO** pending deployed-cloud, live-model,
+physical-device and facilitated room validation. No such results are claimed.
 
 ## Deferred
 

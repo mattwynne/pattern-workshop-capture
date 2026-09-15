@@ -1,3 +1,4 @@
+import { requestLogging, jsonLog, type LogSink } from "./logging.js";
 import express from "express";
 import multer from "multer";
 import { DraftBoard } from "./drafts.js";
@@ -6,9 +7,11 @@ import { avatarPreviews, cleanAvatar, normalizeAvatar } from "./image.js";
 import type { OpenRouter } from "./openrouter.js";
 import { validatePattern } from "./pattern.js";
 
-export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter, cleanup: typeof cleanAvatar = cleanAvatar) {
+export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter, cleanup: typeof cleanAvatar = cleanAvatar, log: LogSink = jsonLog) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 12 } });
+  app.use(requestLogging(log));
+  app.use("/api", (_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
   app.use(express.json({ limit: "1mb" }));
   app.use(express.static("public"));
 
@@ -21,7 +24,7 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
     response.json(draft);
   });
   app.get("/api/dashboard/events", (request, response) => {
-    response.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+    response.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store, no-transform", Connection: "keep-alive" });
     response.flushHeaders();
     const unsubscribe = board.subscribe(response);
     request.on("close", unsubscribe);
@@ -32,7 +35,7 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
     try {
       response.json({ suggestions: await ai.interpretPhoto(request.file.buffer) });
     } catch (error) {
-      response.status(502).json({ error: error instanceof Error ? error.message : "Interpretation failed" });
+      response.status(502).json({ error: "Photo interpretation failed. Try again or enter the fields manually." });
     }
   });
   app.post("/api/interpret/audio", upload.single("audio"), async (request, response) => {
@@ -41,7 +44,7 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
     try {
       response.json(await ai.interpretSpeech(request.file.buffer, request.file.mimetype));
     } catch (error) {
-      response.status(502).json({ error: error instanceof Error ? error.message : "Transcription failed" });
+      response.status(502).json({ error: "Transcription failed. Try again or enter the fields manually." });
     }
   });
   // Request-local only: no raw images, previews or selection state are stored.
@@ -57,6 +60,7 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
     }
   });
   app.post("/api/patterns", upload.single("avatar"), async (request, response) => {
+    let validated = false;
     try {
       const pattern = validatePattern(request.body);
       if (request.file && !pattern.avatarAlt) throw new Error("A picture description is required");
@@ -67,19 +71,20 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
       const avatar = request.file
         ? await normalizeAvatar(request.file.buffer, request.file.mimetype)
         : undefined;
+      validated = true;
       const published = await publisher.publish(pattern, avatar);
       board.update(pattern.captureId, { stage: "published", publicUrl: published.publicUrl });
       response.status(201).json(published);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Publication failed";
       if (request.body?.captureId) board.update(request.body.captureId, { stage: "failed" });
-      const validation = /required|Choose|Enter/.test(message);
-      response.status(validation ? 400 : 502).json({ error: message });
+      const validation = !validated && /required|Choose|Enter/.test(message);
+      response.status(validation ? 400 : 502).json({ error: validation ? message : "Publication could not be confirmed. Try publishing again; your draft is safe." });
     }
   });
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
-      ? "The avatar must be smaller than 16 MB"
+      ? "The upload must be smaller than 16 MB"
       : "The upload could not be processed";
     response.status(400).json({ error: message });
   });

@@ -29,7 +29,8 @@ async function createDraft() {
 }
 
 async function restoreOrCreateDraft() {
-  const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch { localStorage.removeItem(storageKey); }
   if (saved) {
     draftId = saved.draftId;
     for (const field of fields) if (saved[field] !== undefined) document.querySelector(`#${field}`).value = saved[field];
@@ -78,6 +79,8 @@ function showReview(data) {
   for (const field of ['context', 'problem', 'solution']) document.querySelector(`#review-${field}`).textContent = data[field];
   document.querySelector('#review-attribution').textContent = data.attributionKind === 'anonymous' ? 'Anonymous contribution' : `Contributed by ${data.attributionName}`;
   captureStep.hidden = true; reviewStep.hidden = false; resultStep.hidden = true;
+  document.querySelector('#review-name').setAttribute('tabindex', '-1');
+  document.querySelector('#review-name').focus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -138,8 +141,9 @@ let recordTimer;
 recordButton.addEventListener('click', async () => {
   if (recorder?.state === 'recording') { recorder.stop(); return; }
   showError('');
+  let stream;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const preferred = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
     recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined);
     const chunks = []; let seconds = 0;
@@ -154,10 +158,10 @@ recordButton.addEventListener('click', async () => {
       seconds += 1; recordingTime.textContent = `Recording ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} / 2:00`;
       if (seconds >= 120) recorder.stop();
     }, 1000);
-  } catch { showError('Microphone access was not available. You can choose an audio file instead.'); }
+  } catch { stream?.getTracks().forEach(track => track.stop()); showError('Microphone access was not available. You can choose an audio file instead.'); }
 });
 
-document.querySelector('#back-button').addEventListener('click', () => { reviewStep.hidden = true; captureStep.hidden = false; window.scrollTo({ top: 0, behavior: 'smooth' }); });
+document.querySelector('#back-button').addEventListener('click', () => { reviewStep.hidden = true; captureStep.hidden = false; document.querySelector('#name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
 publishButton.addEventListener('click', async () => {
   showError(''); publishButton.disabled = true; publishButton.textContent = 'Publishing…';
   try {
@@ -165,7 +169,7 @@ publishButton.addEventListener('click', async () => {
     const response = await fetch('/api/patterns', { method: 'POST', body }); const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Publication failed');
     avatar.discard(); localStorage.removeItem(storageKey); reviewStep.hidden = true; resultStep.hidden = false;
-    const link = document.querySelector('#pattern-link'); link.href = result.publicUrl; window.scrollTo({ top: 0, behavior: 'smooth' });
+    const link = document.querySelector('#pattern-link'); link.href = result.publicUrl; link.focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (error) { showError(error.message); publishButton.disabled = false; publishButton.textContent = 'Try publishing again'; }
 });
 document.querySelector('#another-button').addEventListener('click', () => location.reload());

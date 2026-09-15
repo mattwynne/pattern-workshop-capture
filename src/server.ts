@@ -19,4 +19,4 @@ const ai = process.env.OPENROUTER_API_KEY
     )
   : undefined;
 const port = Number(process.env.PORT ?? 8080);
-createApp(publisher, undefined, ai).listen(port, "0.0.0.0", () => console.log(`Capture app listening on ${port}`));
+createApp(publisher, undefined, ai).listen(port, "0.0.0.0", () => console.log(JSON.stringify({ event: "server_started", port })));

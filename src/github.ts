@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { PatternInput, patternMarkdown, slugify } from "./pattern.js";
 import type { PublicAvatar } from "./image.js";
 
@@ -33,6 +34,7 @@ export class GitHubPublisher implements PatternPublisher {
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
     return fetch(`https://api.github.com${path}`, {
       ...init,
+      signal: AbortSignal.timeout(20_000),
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${this.options.token}`,
@@ -49,17 +51,6 @@ export class GitHubPublisher implements PatternPublisher {
     return response.json() as Promise<T>;
   }
 
-  private async findByCaptureId(captureId: string): Promise<PublishedPattern | null> {
-    const query = encodeURIComponent(`repo:${this.options.owner}/${this.options.repo} path:content/patterns ${captureId}`);
-    const response = await this.request(`/search/code?q=${query}`);
-    if (!response.ok) return null;
-    const data = await response.json() as { items?: Array<{ path: string; html_url: string }> };
-    const item = data.items?.[0];
-    if (!item) return null;
-    const slug = item.path.split("/")[2];
-    return this.result(slug, item.html_url);
-  }
-
   private result(slug: string, commitUrl: string): PublishedPattern {
     return {
       slug,
@@ -68,8 +59,8 @@ export class GitHubPublisher implements PatternPublisher {
     };
   }
 
-  private async pathExists(path: string): Promise<boolean> {
-    const response = await this.request(`/repos/${this.options.owner}/${this.options.repo}/contents/${path}?ref=${this.branch}`);
+  private async pathExists(path: string, ref: string): Promise<boolean> {
+    const response = await this.request(`/repos/${this.options.owner}/${this.options.repo}/contents/${path}?ref=${encodeURIComponent(ref)}`);
     if (response.status === 404) return false;
     if (!response.ok) throw new Error(`GitHub path check failed (${response.status})`);
     return true;
@@ -84,16 +75,27 @@ export class GitHubPublisher implements PatternPublisher {
   }
 
   async publish(pattern: PatternInput, avatar?: PublicAvatar): Promise<PublishedPattern> {
-    const existing = await this.findByCaptureId(pattern.captureId);
-    if (existing) return existing;
-
+    const repo = `/repos/${this.options.owner}/${this.options.repo}`;
+    const receiptPath = `.workshop-captures/${createHash('sha256').update(pattern.captureId).digest('hex')}.json`;
     const root = slugify(pattern.name);
-    for (let suffix = 1; suffix <= 100; suffix++) {
-      const slug = suffix === 1 ? root : `${root}-${suffix}`;
+    const deadline = Date.now() + 240_000;
+    for (let attempt = 0; attempt < 150 && Date.now() < deadline; attempt++) {
+      const ref = await this.json<RefResponse>(`${repo}/git/ref/heads/${this.branch}`);
+      // Both receipt and slug checks use the same immutable tree as the commit parent.
+      const receipt = await this.request(`${repo}/contents/${receiptPath}?ref=${ref.object.sha}`);
+      if (receipt.ok) {
+        const data = await receipt.json() as { content: string };
+        const { slug } = JSON.parse(Buffer.from(data.content, 'base64').toString());
+        return this.result(slug, `https://github.com/${this.options.owner}/${this.options.repo}/commit/${ref.object.sha}`);
+      }
+      if (receipt.status !== 404) throw new Error(`GitHub receipt check failed (${receipt.status})`);
+      let slug = root;
+      let suffix = 1;
+      while (await this.pathExists(`content/patterns/${slug}/index.md`, ref.object.sha)) {
+        slug = `${root}-${++suffix}`;
+        if (suffix > 1000) throw new Error("Could not reserve a unique pattern name");
+      }
       const bundlePath = `content/patterns/${slug}`;
-      if (await this.pathExists(`${bundlePath}/index.md`)) continue;
-
-      const ref = await this.json<RefResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/ref/heads/${this.branch}`);
       const parent = await this.json<CommitResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/commits/${ref.object.sha}`);
       const markdownSha = await this.createBlob(Buffer.from(patternMarkdown(pattern), "utf8"));
       const treeEntries: Array<{ path: string; mode: string; type: string; sha: string }> = [
@@ -103,6 +105,8 @@ export class GitHubPublisher implements PatternPublisher {
         const avatarSha = await this.createBlob(avatar.bytes);
         treeEntries.push({ path: `${bundlePath}/avatar.${avatar.extension}`, mode: "100644", type: "blob", sha: avatarSha });
       }
+      const receiptSha = await this.createBlob(Buffer.from(JSON.stringify({ slug })));
+      treeEntries.push({ path: receiptPath, mode: "100644", type: "blob", sha: receiptSha });
       const tree = await this.json<ShaResponse>(`/repos/${this.options.owner}/${this.options.repo}/git/trees`, {
         method: "POST", body: JSON.stringify({ base_tree: parent.tree.sha, tree: treeEntries }),
       });
@@ -110,16 +114,19 @@ export class GitHubPublisher implements PatternPublisher {
         method: "POST",
         body: JSON.stringify({ message: `Publish pattern: ${pattern.name}\n\nCapture-ID: ${pattern.captureId}`, tree: tree.sha, parents: [ref.object.sha] }),
       });
-      const update = await this.request(`/repos/${this.options.owner}/${this.options.repo}/git/refs/heads/${this.branch}`, {
-        method: "PATCH", body: JSON.stringify({ sha: commit.sha, force: false }),
-      });
-      if (update.ok) return this.result(slug, `https://github.com/${this.options.owner}/${this.options.repo}/commit/${commit.sha}`);
-      if (update.status === 409 || update.status === 422) {
-        const duplicate = await this.findByCaptureId(pattern.captureId);
-        if (duplicate) return duplicate;
-        continue;
+      try {
+        const update = await this.request(`${repo}/git/refs/heads/${this.branch}`, {
+          method: "PATCH", body: JSON.stringify({ sha: commit.sha, force: false }),
+        });
+        if (update.ok) return this.result(slug, `https://github.com/${this.options.owner}/${this.options.repo}/commit/${commit.sha}`);
+        if (![409, 422, 500, 502, 503, 504].includes(update.status)) {
+          throw new Error(`GitHub publication failed (${update.status})`);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('GitHub publication failed')) throw error;
+        // A lost PATCH response is ambiguous: the next snapshot checks the atomic receipt.
       }
-      throw new Error(`GitHub publication failed (${update.status})`);
+
     }
     throw new Error("Could not reserve a unique pattern name");
   }

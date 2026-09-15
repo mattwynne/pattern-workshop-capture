@@ -36,6 +36,7 @@ export class OpenRouter {
   private async callChat(model: string, content: unknown): Promise<PatternSuggestions> {
     const response = await this.fetcher("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(60_000),
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
@@ -52,7 +53,7 @@ export class OpenRouter {
     if (!text) throw new Error("AI interpretation returned no suggestions");
     try {
       const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
-      return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => key in schema.properties && typeof value === "string" && value.trim())) as PatternSuggestions;
+      return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => Object.hasOwn(schema.properties, key) && typeof value === "string" && value.trim())) as PatternSuggestions;
     } catch {
       throw new Error("AI interpretation returned an unexpected response");
     }
@@ -87,6 +88,7 @@ export class OpenRouter {
     }
     const response = await this.fetcher("https://openrouter.ai/api/v1/audio/transcriptions", {
       method: "POST",
+      signal: AbortSignal.timeout(60_000),
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: this.transcriptionModel, input_audio: { data: bytes.toString("base64"), format } }),
     });

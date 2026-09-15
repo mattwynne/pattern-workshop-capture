@@ -141,3 +141,57 @@ A later CI deployment currently restores the configured minimum to one. Change `
 - **Secret access denied:** confirm the runtime account has `roles/secretmanager.secretAccessor`.
 - **Handbook publication denied:** check token expiry, selected repository, and Contents read/write permission.
 - **AI features unavailable:** verify that `openrouter-api-key` has an enabled version and available OpenRouter credit. Typed capture and publication remain usable without successful AI calls.
+
+## Release rehearsal, QR and go/no-go
+
+Follow [the rehearsal record](rehearsal.md) before admitting workshop participants.
+CI now runs API/Git fault tests, browser/accessibility tests, a QR decoding test and
+a pinned Hugo integration build. These use local doubles and do not establish
+production readiness. The deploy job remains skipped until cloud variables exist.
+
+Generate the printable SVG and PNG after obtaining the final HTTPS capture URL:
+
+```sh
+npm run qr -- https://YOUR-FINAL-CAPTURE-HOST/ artifacts/qr
+```
+
+Print the human-readable URL alongside the QR. The generator refuses embedded
+credentials, query strings and fragments. Scan the printed result on both phones.
+
+## Monitor and recover
+
+Cloud Run uses one warm instance, a maximum of one and concurrency 80. The room
+rehearsal must confirm CPU/memory and GitHub/OpenRouter quotas at the real workshop
+rate; long-lived dashboard connections consume request slots. Avoid deploying
+mid-session because revisions have separate in-memory boards, even with a scale cap.
+
+Inspect Cloud Logging for the service and `jsonPayload.event="http_request"`.
+Use `jsonPayload.status>=500` to find failures and `jsonPayload.requestId` to match
+`X-Request-ID` from the browser. Track error counts and duration changes against the
+rehearsal baseline. Do not enable body/header logging. Cloud Run's own access logs
+may record request URLs; do not put participant information or secrets in URLs.
+Check the Google log retention policy before the event. Do not paste raw logs or
+credentials into the handbook or issue tracker.
+
+Before deployment, record the current known-good revision and image digest:
+
+```sh
+gcloud run revisions list --service pattern-workshop-capture \
+  --project PROJECT_ID --region us-central1
+```
+
+If a deployment fails health or rehearsal checks, restore all traffic to that
+recorded revision (replace `KNOWN_GOOD_REVISION` with its actual name):
+
+```sh
+gcloud run services update-traffic pattern-workshop-capture \
+  --project PROJECT_ID --region us-central1 \
+  --to-revisions KNOWN_GOOD_REVISION=100
+```
+
+Verify `/health`, reconnect the dashboard and perform a reviewed capture. Rollback
+resets in-memory state and does not undo Git commits. Preserve browser drafts and
+check the handbook before recreating an ambiguously published capture. Do not roll
+back to a pre-007 publisher during submissions: it cannot use the new capture
+receipts. Correct code on `main` or revert the faulty change, run all checks, and
+redeploy; otherwise the next push can reintroduce the bad revision.

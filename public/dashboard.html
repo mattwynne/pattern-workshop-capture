@@ -12,7 +12,7 @@
   <main class="shell dashboard-shell">
     <div class="dashboard-header">
       <div><p class="eyebrow">Explore DDD 2026</p><h1>Our patterns</h1></div>
-      <p class="live-badge"><span class="live-dot"></span> Live from the room</p>
+      <p class="live-badge" role="status"><span class="live-dot"></span> Live from the room</p>
     </div>
     <div id="board" class="pattern-board"><p class="empty">Waiting for the first pattern…</p></div>
   </main>
@@ -20,6 +20,9 @@
     const board = document.querySelector('#board');
     const labels = { drafting: 'Being written', publishing: 'Publishing', published: 'Published', failed: 'Needs another try' };
     const events = new EventSource('/api/dashboard/events');
+    const badge = document.querySelector('.live-badge');
+    events.onopen = () => { badge.textContent = 'Live from the room'; };
+    events.onerror = () => { badge.textContent = 'Reconnecting… showing last update'; };
     events.onmessage = ({ data }) => {
       const drafts = JSON.parse(data);
       if (!drafts.length) { board.innerHTML = '<p class="empty">Waiting for the first pattern…</p>'; return; }

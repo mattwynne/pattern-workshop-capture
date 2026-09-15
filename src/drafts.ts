@@ -18,6 +18,7 @@ export class DraftBoard {
   update(id: string, update: Partial<Pick<DraftStatus, "name" | "stage" | "publicUrl">>): DraftStatus | null {
     const current = this.drafts.get(id);
     if (!current) return null;
+    if (current.stage === "published") return current;
     const next = { ...current, ...update, updatedAt: new Date().toISOString() };
     this.drafts.set(id, next);
     this.broadcast();
@@ -29,10 +30,19 @@ export class DraftBoard {
   subscribe(response: Response): () => void {
     this.listeners.add(response);
     this.send(response);
-    return () => this.listeners.delete(response);
+    const heartbeat = setInterval(() => {
+      if (!response.write(': heartbeat\n\n')) response.destroy();
+    }, 15_000);
+    heartbeat.unref();
+    return () => { clearInterval(heartbeat); this.listeners.delete(response); };
   }
 
   private send(response: Response): void {
+    if (response.writableLength > 1_048_576) {
+      this.listeners.delete(response);
+      response.destroy();
+      return;
+    }
     response.write(`data: ${JSON.stringify(this.all())}\n\n`);
   }
 
