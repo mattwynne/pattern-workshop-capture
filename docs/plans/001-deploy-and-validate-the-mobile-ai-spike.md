@@ -1,6 +1,6 @@
 # Iteration 001: Publish a reviewed typed pattern
 
-- **Status:** In progress
+- **Status:** Implemented locally; deployment and acceptance validation pending
 - **Depends on:** Serverless direct-publishing ADR
 
 ## Outcome

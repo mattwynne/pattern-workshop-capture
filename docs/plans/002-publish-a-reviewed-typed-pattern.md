@@ -1,6 +1,6 @@
 # Iteration 002: Publish a participant-supplied pattern avatar
 
-- **Status:** In progress
+- **Status:** Implemented locally; integration and device validation pending
 - **Depends on:** Iteration 001
 
 ## Outcome

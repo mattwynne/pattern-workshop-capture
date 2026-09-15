@@ -1,6 +1,6 @@
 # Iteration 003: Interpret temporary card photographs
 
-- **Status:** In progress
+- **Status:** Implemented locally; live-model and device validation pending
 - **Depends on:** Iteration 002
 
 ## Outcome

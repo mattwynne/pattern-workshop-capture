@@ -1,6 +1,6 @@
 # Iteration 004: Transcribe a temporary spoken explanation
 
-- **Status:** In progress
+- **Status:** Implemented locally; live-model and device validation pending
 - **Depends on:** Iteration 003
 
 ## Outcome

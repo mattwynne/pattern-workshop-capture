@@ -1,6 +1,6 @@
 # Iteration 006: Project live capture progress
 
-- **Status:** In progress
+- **Status:** Implemented locally; load and deployment validation pending
 - **Depends on:** Iteration 001; enriched by later capture modes
 
 ## Outcome
