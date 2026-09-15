@@ -1,6 +1,6 @@
 # Iteration 002: Publish a participant-supplied pattern avatar
 
-- **Status:** Implemented locally; integration and device validation pending
+- **Status:** Implemented locally; real GitHub-to-Pages avatar validation passed; deployed-app and physical-device validation pending
 - **Depends on:** Iteration 001
 
 ## Outcome
@@ -32,3 +32,19 @@ A participant can optionally take or choose a picture representing the pattern a
 - Atomic Git tree/commit integration test.
 - Camera and library selection on iPhone Safari and Android Chrome.
 - Hugo build with representative portrait and landscape avatars.
+
+## Live validation evidence
+
+The 2026-09-15 [Iteration 002 rehearsal](../rehearsal.md#iteration-002-live-avatar-publication--2026-09-15)
+verified the real local browser/API flow with a generated synthetic JPEG containing
+test EXIF/GPS metadata, reviewed alt text, and the **Gently cleaned** selection.
+The atomic Git commit contained exactly Markdown, the selected metadata-free WebP,
+and its receipt. Pages rendered the image, alt text and catalogue card successfully.
+A normal cleanup commit removed the page bundle; Pages removal and receipt retention
+were verified. The selected preview, committed image and served image were byte-identical.
+
+The local TypeScript build, 43 tests, 21 browser tests and pinned Hugo check passed.
+No application defect was exposed. This does not validate a deployed capture app,
+physical iPhone/Android camera or photo-library use, or HEIC on those devices. No
+live models were used. Deployed-app and physical-device checks prevent marking
+this iteration **Done**.

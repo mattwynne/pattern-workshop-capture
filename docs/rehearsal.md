@@ -63,6 +63,111 @@ retries, image publishing, deployed-cloud boundaries, real models, or physical
 phones. Those broader release gates remain pending; local race/retry coverage is
 not evidence that they were exercised against GitHub in this run.
 
+## Iteration 002 live avatar publication — 2026-09-15
+
+**Result:** Real avatar capture-to-GitHub-to-Pages publication and cleanup passed
+from the local application. The selected **Gently cleaned** image reached Git and
+Pages unchanged, with the reviewed alt text on the detail page and no EXIF/GPS
+metadata. Iteration 002 remains **Implemented locally**: deployed-cloud and
+physical-device checks remain pending. The workshop decision remains **NO-GO**.
+No other iteration was started or marked complete.
+
+- Operator: Codex on Matt's host, at the user's direction; UTC 2026-09-15.
+- Capture application: `1d29b966a2bdf41bb618ff5d29109b97823562af` (clean before the run),
+  Node 24.18.0, built with `npm run build`; real `src/server.ts` entrypoint at local
+  port 18082, using the real GitHub publisher. Chromium used the Pixel 7 viewport;
+  this was not a physical phone. No API or GitHub responses were stubbed.
+- Authentication: existing GitHub CLI credentials read through a subprocess pipe
+  and passed to the application in memory. No credential values were printed or
+  persisted. A dedicated production publishing token remains pending.
+- Fixture: **TEMPORARY REHEARSAL Iteration 002 2026-09-15**, anonymous attribution,
+  explicitly temporary synthetic Context/Problem/Solution. The generated JPEG
+  shows a pink square, right-pointing arrow and pink circle, with visible
+  `TEMPORARY REHEARSAL 002` and `SYNTHETIC TEST — NO PARTICIPANT DATA` labels.
+  It contains no participant data and was generated deterministically with Sharp,
+  without a model. Operator fixture/probe files were held in temporary host
+  storage; application uploads and previews remained request/browser memory only.
+- Source metadata was verified by decoding the JPEG's 404-byte EXIF block and its
+  TIFF GPS IFD: Artist `SYNTHETIC EXIF TEST Iteration 002`, ImageDescription
+  `Temporary rehearsal metadata must be stripped`, latitude reference `N`, longitude
+  reference `E`, and both coordinates `0/1 0/1 0/1` (synthetic zero coordinates).
+  The source was 51,083 bytes, 960 × 640 pixels. Its SHA-256 was
+  `bb9de70a3ebfa443ee33ceb7e62253a60ab7fe83213cf7a71d18bacd1d38bdfe`.
+- Browser flow: entered the four fields and anonymous attribution; selected the
+  synthetic JPEG using the real file input; `/api/avatars/previews` returned HTTP
+  200. Selected **Gently cleaned**, entered the alt text below, and opened review.
+  The source, review screenshot and committed image were visually inspected: the
+  labels, shapes, arrow and full frame remained intact. The review image's alt
+  attribute matched the entered text exactly:
+
+  > Synthetic rehearsal diagram: a pink square points right to a pink circle beneath TEMPORARY REHEARSAL 002.
+
+- Byte identity: the normalized original preview had SHA-256
+  `04546ce94861bf1194ba58cca8ea1f25da3f0c73c9f181147ef7ea873d2d6ae3`.
+  The distinct cleaned preview, review image, outgoing avatar file, committed
+  image and downloaded Pages image all had SHA-256
+  `386df65c41c90e6955aca1c79cf2d7e6cda399673e446a3da01390f1f8a1295d`.
+  A browser fetch observer inspected the real outgoing FormData before forwarding
+  it unchanged: exactly one file, `avatar.webp`, MIME `image/webp`, containing the
+  cleaned bytes. Neither the source JPEG nor the unselected original was sent to
+  `/api/patterns`. The API returned HTTP 201 at 01:38:42 UTC; the result link matched
+  the returned public URL and the browser-local draft was cleared.
+- Publication: [handbook commit 48abd5fbc5961dba3f79ba7e14a37f8122e6e8be](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/commit/48abd5fbc5961dba3f79ba7e14a37f8122e6e8be),
+  directly on `main`, sole parent `aaa188cb7d7ee97b4da19946f476bf3bf3314cea`.
+  Capture UUID: `01899675-2321-4aa6-b1b1-8ff3431c4a09`.
+  GitHub's commit API confirmed exactly three added files in the atomic commit:
+  `content/patterns/temporary-rehearsal-iteration-002-2026-09-15/index.md`,
+  the same bundle's `avatar.webp`, and
+  `.workshop-captures/a4af69f5b6959bb14cb96a15455c857b25913818bda4a61c88c64889b1d6120f.json`.
+  The Markdown contained every reviewed field and the exact alt text. The receipt
+  contained only `{"slug":"temporary-rehearsal-iteration-002-2026-09-15"}`.
+- Committed-image inspection at 01:38:45 UTC: fetched the image from GitHub at the
+  immutable publication SHA, decoded it with Sharp and parsed its RIFF chunks.
+  It is a 100,064-byte, 960 × 640 lossless WebP with only a `VP8L` pixel-data chunk.
+  No `EXIF`, `XMP ` or `ICCP` chunks exist; decoded EXIF, XMP, ICC, IPTC and orientation
+  fields are absent. Its Git blob is `8c1c27a227bbbc71205f9bca49073f8593937cf3`.
+  This proves the actual committed bytes contain no EXIF/GPS metadata, not merely
+  that the preview omitted it. The three-file diff excludes raw or unselected media.
+- Deployment: [Publish handbook run 34918089948](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/actions/runs/34918089948)
+  used the exact publication SHA. Build and deploy succeeded; deploy finished at
+  01:39:05 UTC.
+- Rendered verification at 01:39:53 UTC: the [temporary page](https://mattwynne.github.io/explore-ddd-anti-authoritarian-team-practices-workshop/patterns/temporary-rehearsal-iteration-002-2026-09-15/)
+  and image returned HTTP 200. Chromium verified the title, all body fields,
+  Anonymous attribution, exact detail-image alt text, successful image decoding
+  and 960 × 640 natural dimensions. The homepage returned HTTP 200; the catalogue
+  card displayed the same image bytes and its link navigated to the correct page.
+  The catalogue image uses the existing template's decorative `alt=""` inside its
+  text-labelled link; the reviewed descriptive alt is on the detail image.
+  Rendered detail and catalogue screenshots were visually inspected.
+- Cleanup: [handbook commit f107398a4fb317404b93c05b3482fb6509cb7f26](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/commit/f107398a4fb317404b93c05b3482fb6509cb7f26)
+  was pushed directly to `main` as a normal cleanup commit, with the publication
+  SHA as its sole parent. GitHub's commit API confirmed it removed exactly the
+  temporary `index.md` and `avatar.webp`. The receipt was retained and its contents
+  verified at the cleanup SHA. GitHub's comparison against the pre-rehearsal parent
+  confirmed that this receipt is the only remaining change.
+- Cleanup deployment: [Publish handbook run 34918181638](https://github.com/mattwynne/explore-ddd-anti-authoritarian-team-practices-workshop/actions/runs/34918181638)
+  used the exact cleanup SHA. Build and deploy succeeded; deploy finished at
+  01:40:32 UTC. At 01:40:41 UTC a fresh Chromium context observed HTTP 404 for both
+  the removed page and avatar, HTTP 200 for the homepage, and no temporary title
+  or card link there. The receipt's Pages URL also returned HTTP 404, confirming
+  it is non-rendered. The temporary page URL above is intentionally removed.
+- Checks: `npm run check` passed the TypeScript build and all 43 tests;
+  `npm run test:browser` passed all 21 tests;
+  `HUGO_BIN=/tmp/hugo-007/hugo npm run check:hugo` passed with Hugo extended 0.150.0
+  (four HTML pages, 18 local links/assets). Existing section/taxonomy layout
+  warnings remain as documented below. No application defect was exposed, so no
+  implementation fix or new regression test was needed. The one-off probe was
+  corrected for Playwright's unavailable multipart `postDataBuffer` and for the
+  catalogue's existing decorative alt convention; neither required product changes.
+
+This completes Iteration 002's local-app-to-live-GitHub/Pages avatar validation
+only. It does not claim Google Cloud deployment, a live model, physical camera or
+photo-library/HEIC validation, live simultaneous submissions or interrupted-response
+retry testing. Retaining the receipt preserves the existing retry-safety mechanism;
+no live retry was attempted. Physical iPhone Safari and Android Chrome checks and
+deployed-application validation remain pending. Iteration 005's broader gates are
+unchanged; this run did not review real workshop drawings or start another iteration.
+
 ## Reproducible local evidence
 
 Run from a clean checkout with Node 24:
@@ -149,7 +254,7 @@ Git/Pages links as evidence; do not publish test participant data without review
 | Gate | Required evidence | Status |
 | --- | --- | --- |
 | Cloud bootstrap and deployment | Project/billing, Secret Manager, WIF deploy, exact image revision, `/health` | Pending: Google credentials/configuration unavailable |
-| GitHub publishing and Pages | Real token, simultaneous submissions, retry after interrupted response, final page/selected image | Partial: Iteration 001 local-app typed publication and Pages cleanup verified above; dedicated publishing token, deployed integration, live concurrency/interrupted retry and image checks remain pending |
+| GitHub publishing and Pages | Real token, simultaneous submissions, retry after interrupted response, final page/selected image | Partial: Iterations 001/002 local-app typed and selected-avatar publication, metadata removal, Pages rendering and cleanup verified above; dedicated publishing token, deployed integration and live concurrency/interrupted retry remain pending |
 | OpenRouter | Cards, real recordings, configured model IDs, credits, latency, failure fallback | Pending: OpenRouter credentials |
 | iPhone Safari and Android Chrome | Camera/library, HEIC, original/cleaned human review, photo suggestions, recorder/file fallback, attribution, review, public page | Pending: physical devices |
 | Accessibility | VoiceOver/TalkBack, keyboard, zoom, touch targets and readable errors in room conditions | Pending: physical/manual review |
