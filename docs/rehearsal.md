@@ -168,6 +168,111 @@ no live retry was attempted. Physical iPhone Safari and Android Chrome checks an
 deployed-application validation remain pending. Iteration 005's broader gates are
 unchanged; this run did not review real workshop drawings or start another iteration.
 
+## Iteration 003 live photo interpretation attempt — 2026-09-15
+
+**Result: blocked on OpenRouter authentication.** The actual local browser/API
+photo flow reached OpenRouter, which returned **401, `User not found.`** for the
+configured default `google/gemini-2.5-flash`. Live output quality and successful
+suggestion application could not be validated. Real failure handling, manual editing,
+reload recovery and review passed. Iteration 003 remains **Implemented locally**;
+the workshop decision remains **NO-GO**.
+
+- Operator: Codex on Matt's host at the user's direction; UTC 2026-09-15.
+  Application revision `aa759f2`, initially clean on `main`; Node 24.18.0,
+  `npm run build`, actual `dist/src/server.js` entrypoint on port 18083.
+  Chromium used the Pixel 7 viewport, not a physical phone. The browser, multipart
+  API, image normalization and OpenRouter HTTP requests were real, without stubs.
+  The publisher had an inert placeholder credential; no publishing was attempted.
+- Credential handling: the supplied host credential file was read directly into an
+  in-memory process environment variable and inherited by the local app. No key
+  value was printed, passed in command arguments, written to artifacts or committed.
+  A temporary fetch observer forwarded requests unchanged and recorded only
+  allowlisted status/model/timing/usage metadata. It checked the known provider
+  error text by equality; it did not log raw provider errors or request headers.
+- Fixture: built-in imagegen produced a clearly labelled **SYNTHETIC TEST -
+  ITERATION 003** handwritten card on a table, with mild perspective and uneven
+  lighting. Visual inspection confirmed these exact field contents:
+
+  | Field | Synthetic handwriting |
+  | --- | --- |
+  | Name | Pass the pen |
+  | Context | A team is mapping a tricky workflow together. |
+  | Problem | One loud voice holds the pen and quieter ideas get lost. |
+  | Solution | Rotate the pen after each idea. Invite each person to add or pass. |
+
+  The PNG is 1536 × 1024, 2,525,062 bytes, SHA-256
+  `9a73bcbe872b92e7fb4d7961e791e3009d02ea03dd8b5936946bb7c0dae76481`.
+  Running the application's normalization pipeline on those bytes produced a
+  158,916-byte WebP, SHA-256
+  `107d745fca75d0907b06d9ea686ca98a117287dedd956e590bdb32ef9c829aed`.
+  This generated handwriting is a synthetic fixture, not evidence from real cards.
+- Four browser attempts returned app HTTP 502. The first two probes stopped at
+  their success assertion before retaining detailed telemetry; the last two
+  explicitly observed provider HTTP 401. No successful inference was observed.
+  The final run completed at **01:46:58.327 UTC**: provider request/response plus
+  observer JSON parsing **179 ms**, app request log **457 ms**, browser click to
+  parsed API response **505 ms**. The preceding instrumented attempt measured
+  165 / 369 / 409 ms respectively. These are authentication-failure latencies,
+  not model inference timings. No returned model/provider ID, generation ID,
+  token usage or cost was supplied. OpenRouter cost is **unobservable**, not
+  asserted to be zero; fixture generation cost was also unavailable.
+- Final response: HTTP 502, body exactly
+  `{"error":"Photo interpretation failed. Try again or enter the fields manually."}`.
+  Headers included `Cache-Control: no-store`,
+  `Content-Type: application/json; charset=utf-8`, `Content-Length: 80`,
+  `ETag: W/"50-zjSiYM0k8p8RtuKRZFSIS+0Mpk4"`, and
+  `X-Request-ID: 8c3a6a39-057e-4aca-94c4-9780308d57bb`.
+  There was no `Set-Cookie` header. The provider error and credential did not
+  appear in the participant response; the matching app log contained only the
+  existing request ID/method/route/status/duration allowlist. The ETag accompanies
+  a no-store response; successful-response headers remain unverified live.
+- Manual fallback: all four pre-entered fields remained unchanged after failure.
+  The operator edited Solution to `Manual fallback remains editable. SYNTHETIC TEST 003`,
+  reloaded, and verified the edit persisted and the photo input became empty.
+  Review showed the exact edited text and Anonymous attribution, with the publish
+  button enabled. A screenshot was visually inspected. The browser recorded **zero
+  `/api/patterns` requests**; nothing synthetic was published to the handbook.
+  Actual manual publication following this live error was deliberately not tested.
+- Suggestion behavior: live output was absent, so transcription fidelity, missing-field
+  restraint, per-field/apply-all application and editing of actual model output
+  remain pending. Four existing photo-only Chromium tests passed with synthetic
+  provider responses: group/individual/anonymous flows and network-failure fallback.
+  They verified no automatic overwrite, per-field isolation, explicit apply-all,
+  editing, reload, review and publication to an in-memory publisher only.
+- Media persistence: `strace -f` followed the app and its threads for file opens,
+  creates, renames, unlinks and directory creation; no write-capable file opens or
+  filesystem mutations occurred during the final run. The trace excluded write
+  payloads, network payloads and process environment contents. Code review confirms
+  `multer.memoryStorage()` and Sharp buffer-to-buffer processing; the photo route
+  neither writes files nor invokes the publisher. Browser local storage held only
+  draft text/options/ID, session storage was empty, and Cache Storage and IndexedDB
+  were empty. The selected source file remained in page memory until reload; this
+  is not immediate browser-memory erasure. No source image is tracked in Git.
+  Provider-side retention is outside this app's control and was not verified.
+- Operator-only artifacts are in ignored `artifacts/iteration-003/`: the synthetic
+  fixture, exact built-in generation prompt (`fixture-prompt.txt`), sanitized
+  `evidence.json`, review screenshot and filesystem trace.
+  These are explicit operator evidence files, not app-persisted uploads, and are
+  excluded from the commit. The temporary probe/observer are under
+  `/tmp/iteration-003-live/`; all app/browser processes were stopped.
+- Validation: TypeScript build passed; the final anchored photo/OpenRouter test
+  selection passed **7 tests**; the photo-only browser selection passed **4 tests**.
+  An earlier overly broad test-name filter accidentally also ran the existing
+  synthetic 126-second WAV rejection test; it passed without any provider call.
+  No live speech, transcription, recording or microphone flow was exercised.
+  The full suite was not run to keep remaining checks within this iteration.
+  No application defect was demonstrated, so no implementation or regression-test
+  change was made. An invalid-model failure was not attempted after the real
+  authentication failure already supplied a safe provider-failure case.
+
+**Remaining gates:** provide a working OpenRouter credential and rerun the default
+model success flow, recording output, application/edit controls, successful-response
+headers, inference timing and any reported usage/cost. Production OpenRouter
+configuration, real workshop cards (including varied lighting/orientation and
+missing fields), deployed-app validation and physical iPhone Safari/Android Chrome
+camera/library checks remain pending. No cloud resources were deployed and no
+other iteration was started.
+
 ## Reproducible local evidence
 
 Run from a clean checkout with Node 24:
@@ -255,7 +360,7 @@ Git/Pages links as evidence; do not publish test participant data without review
 | --- | --- | --- |
 | Cloud bootstrap and deployment | Project/billing, Secret Manager, WIF deploy, exact image revision, `/health` | Pending: Google credentials/configuration unavailable |
 | GitHub publishing and Pages | Real token, simultaneous submissions, retry after interrupted response, final page/selected image | Partial: Iterations 001/002 local-app typed and selected-avatar publication, metadata removal, Pages rendering and cleanup verified above; dedicated publishing token, deployed integration and live concurrency/interrupted retry remain pending |
-| OpenRouter | Cards, real recordings, configured model IDs, credits, latency, failure fallback | Pending: OpenRouter credentials |
+| OpenRouter | Cards, real recordings, configured model IDs, credits, latency, failure fallback | Partial: Iteration 003 live photo authentication failure/manual review verified; supplied credential returned 401. Successful vision output, working production credential, real cards and recordings remain pending |
 | iPhone Safari and Android Chrome | Camera/library, HEIC, original/cleaned human review, photo suggestions, recorder/file fallback, attribution, review, public page | Pending: physical devices |
 | Accessibility | VoiceOver/TalkBack, keyboard, zoom, touch targets and readable errors in room conditions | Pending: physical/manual review |
 | Room rehearsal | 50 clients/100 patterns with real boundaries, projected board, reconnect, restart, Wi-Fi loss, noisy recordings | Pending: facilitated room/cloud rehearsal |

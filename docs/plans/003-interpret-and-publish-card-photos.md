@@ -1,6 +1,6 @@
 # Iteration 003: Interpret temporary card photographs
 
-- **Status:** Implemented locally; live-model and device validation pending
+- **Status:** Implemented locally; live success blocked on OpenRouter authentication; real-card and device validation pending
 - **Depends on:** Iteration 002
 
 ## Outcome
@@ -32,3 +32,11 @@ A participant can photograph a handwritten card, receive structured suggestions,
 - Image decoding and request-limit tests.
 - Real workshop card tests under varied lighting and orientation.
 - iPhone Safari and Android Chrome camera tests.
+
+## Live validation — 2026-09-15
+
+The default `google/gemini-2.5-flash` request reached OpenRouter but returned 401
+(`User not found.`). Manual editing/reload/review and no app media persistence
+were verified; successful model output and suggestion application remain pending.
+See the [rehearsal evidence](../rehearsal.md#iteration-003-live-photo-interpretation-attempt--2026-09-15).
+Real workshop cards and physical iPhone/Android checks remain pending.
