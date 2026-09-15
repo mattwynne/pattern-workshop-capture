@@ -51,3 +51,17 @@ physical-device and facilitated room validation. No such results are claimed.
 - Offline-first capture and native apps.
 - Accounts, moderation, and browser post-publication editing.
 - Multi-workshop administration and internet-scale abuse prevention.
+
+## Final credential-independent audit — 2026-09-15
+
+The integrated 001–006 result (including the 004/006 hardening) is covered by the
+[final audit record](../rehearsal.md#iteration-007-final-credential-independent-audit--2026-09-15).
+CI now builds and runs the real production image on every PR/main push without
+cloud credentials. Deployment consumes that tested image by digest. Startup,
+FFmpeg/Sharp, production-only dependencies, static paths, health and redacted logs
+have explicit checks. The operator guide includes pinned-secret rotation,
+model-switch persistence, rollback traffic, final-URL QR and tomorrow's checklist.
+
+Credential/deployed integration, real models, physical phones/projector, printed
+QR and facilitator go/no-go remain pending. CI container evidence is a build/runtime
+gate only; it cannot complete those acceptance criteria. No further iteration is started.

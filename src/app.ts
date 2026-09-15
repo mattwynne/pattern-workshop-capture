@@ -15,10 +15,11 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
   const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 0, parts: 2 } });
   app.use(requestLogging(log));
   app.use("/api", (_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
+  // Liveness is local and independent of payload parsers, caches and providers.
+  app.get("/health", (_request, response) => response.set("Cache-Control", "no-store").json({ ok: true }));
   app.use(express.json({ limit: "1mb" }));
   app.use(express.static("public"));
 
-  app.get("/health", (_request, response) => response.json({ ok: true }));
   app.post("/api/drafts", (request, response) => {
     const id = request.body?.id;
     if (id !== undefined && (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))) return response.status(400).json({ error: 'Invalid draft ID' });

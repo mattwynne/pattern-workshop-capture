@@ -3,7 +3,9 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const [input, directory = 'artifacts/qr'] = process.argv.slice(2);
-const url = new URL(input);
+let url: URL;
+try { url = new URL(input); }
+catch { throw new Error('Provide the final public HTTPS capture URL'); }
 if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
   throw new Error('Use the final public HTTPS capture URL without credentials, query parameters or fragment');
 }

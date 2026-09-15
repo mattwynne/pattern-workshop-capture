@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { DraftBoard, probePage } from "./drafts.js";
 import { createApp } from "./app.js";
 import { GitHubPublisher } from "./github.js";
@@ -20,4 +21,9 @@ const ai = process.env.OPENROUTER_API_KEY
     )
   : undefined;
 const port = Number(process.env.PORT ?? 8080);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be an integer from 1 to 65535");
+// Fail before listening if the production decoder is absent. Never log subprocess
+// errors (which can include environment/path details) or contact external services.
+try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore', timeout: 5000 }); }
+catch { throw new Error("FFmpeg is required and must run successfully"); }
 createApp(publisher, new DraftBoard(probePage), ai).listen(port, "0.0.0.0", () => console.log(JSON.stringify({ event: "server_started", port })));

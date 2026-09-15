@@ -16,6 +16,10 @@ test('QR CLI produces a decodable printable code for an eventual deployed URL', 
     const png = PNG.sync.read(await readFile(join(directory, 'workshop-qr.png')));
     assert.equal(jsQR(new Uint8ClampedArray(png.data), png.width, png.height)?.data, url);
     assert.match(await readFile(join(directory, 'workshop-qr.svg'), 'utf8'), /<svg/);
-    assert.throws(() => execFileSync('node', ['--import', 'tsx', 'scripts/qr.ts', 'http://unsafe.test', directory], { stdio: 'pipe' }));
+    for (const invalid of ['http://unsafe.test', 'https://user:PRIVATE_PASSWORD@capture.test/',
+      'https://capture.test/?token=PRIVATE_QUERY', 'https://capture.test/#PRIVATE_FRAGMENT', 'PRIVATE_INVALID_URL']) {
+      assert.throws(() => execFileSync('node', ['--import', 'tsx', 'scripts/qr.ts', invalid, directory], { stdio: 'pipe' }),
+        (error: any) => !error.stderr.toString().includes('PRIVATE_'));
+    }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

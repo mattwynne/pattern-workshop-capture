@@ -11,7 +11,9 @@
     "check": "npm run build && npm test",
     "test:browser": "playwright test",
     "qr": "tsx scripts/qr.ts",
-    "check:hugo": "tsx scripts/check-hugo.ts"
+    "check:hugo": "tsx scripts/check-hugo.ts",
+    "check:container": "bash scripts/check-container.sh",
+    "check:workflow": "bash scripts/check-workflow.sh"
   },
   "engines": {
     "node": ">=22"

@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: capture-app-production
@@ -24,65 +23,114 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm ci
       - run: npm run check
+      - run: npm run check:workflow
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
-      - uses: peaceiris/actions-hugo@v3
+      - uses: peaceiris/actions-hugo@6b1ee2dcc06c9b6629a5317fa0146473914d05e1 # v3
         with:
           hugo-version: '0.150.0'
           extended: true
       - run: npm run check:hugo
 
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Build production image without cloud credentials
+        run: docker build --tag capture:${{ github.sha }} .
+      - name: Smoke-test the exact production image without network access
+        run: npm run check:container -- capture:${{ github.sha }}
+      - name: Save the tested image for deployment
+        run: docker save capture:${{ github.sha }} --output /tmp/capture-image.tar
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: capture-image
+          path: /tmp/capture-image.tar
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
   deploy:
     # The first documentation push can pass CI before Google Cloud is bootstrapped.
-    if: github.event_name != 'pull_request' && vars.GCP_PROJECT_ID != ''
-    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.GCP_PROJECT_ID != ''
+    needs: [test, container]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     environment:
       name: production
       url: ${{ steps.deploy.outputs.url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Validate deployment configuration
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          HANDBOOK_TOKEN_VERSION: ${{ vars.HANDBOOK_TOKEN_VERSION }}
+          OPENROUTER_API_KEY_VERSION: ${{ vars.OPENROUTER_API_KEY_VERSION }}
+        run: |
+          for key in GCP_PROJECT_ID GCP_REGION GCP_ARTIFACT_REPOSITORY CLOUD_RUN_SERVICE CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT WIF_PROVIDER DEPLOY_ACCOUNT; do
+            test -n "${!key}" || { echo "Missing repository variable: $key" >&2; exit 1; }
+          done
+          [[ "$HANDBOOK_TOKEN_VERSION" =~ ^[1-9][0-9]*$ ]]
+          [[ "$OPENROUTER_API_KEY_VERSION" =~ ^[1-9][0-9]*$ ]]
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: capture-image
+          path: /tmp/capture-image
 
       - id: auth
         name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
 
       - name: Configure Artifact Registry authentication
         run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
-      - name: Build and push container
+      - id: push
+        name: Push the tested container
         env:
           IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/capture:${{ github.sha }}
         run: |
-          docker build --tag "$IMAGE" .
+          docker load --input /tmp/capture-image/capture-image.tar
+          docker tag capture:${{ github.sha }} "$IMAGE"
           docker push "$IMAGE"
+          echo "image=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")" >> "$GITHUB_OUTPUT"
 
       - id: deploy
         name: Deploy to Cloud Run
         env:
-          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/capture:${{ github.sha }}
+          HANDBOOK_TOKEN_VERSION: ${{ vars.HANDBOOK_TOKEN_VERSION }}
+          OPENROUTER_API_KEY_VERSION: ${{ vars.OPENROUTER_API_KEY_VERSION }}
+          IMAGE: ${{ steps.push.outputs.image }}
         run: |
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --image "$IMAGE" \
             --service-account "$CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT" \
-            --set-secrets "GITHUB_TOKEN=github-handbook-token:latest,OPENROUTER_API_KEY=openrouter-api-key:latest" \
-            --set-env-vars "HANDBOOK_OWNER=mattwynne,HANDBOOK_REPO=explore-ddd-anti-authoritarian-team-practices-workshop,HANDBOOK_URL=https://mattwynne.github.io/explore-ddd-anti-authoritarian-team-practices-workshop/" \
+            --set-secrets "GITHUB_TOKEN=github-handbook-token:${HANDBOOK_TOKEN_VERSION},OPENROUTER_API_KEY=openrouter-api-key:${OPENROUTER_API_KEY_VERSION}" \
+            --update-env-vars "HANDBOOK_OWNER=mattwynne,HANDBOOK_REPO=explore-ddd-anti-authoritarian-team-practices-workshop,HANDBOOK_URL=https://mattwynne.github.io/explore-ddd-anti-authoritarian-team-practices-workshop/" \
+            --startup-probe "httpGet.path=/health,httpGet.port=8080,periodSeconds=5,timeoutSeconds=2,failureThreshold=12" \
             --allow-unauthenticated \
             --min-instances 1 \
             --max-instances 1 \
@@ -92,10 +140,16 @@ jobs:
             --no-cpu-throttling \
             --timeout 300 \
             --quiet
+          # Explicitly resume latest traffic after a previous rollback pinned it.
+          gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest --quiet
           URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Verify deployment health
         env:
           URL: ${{ steps.deploy.outputs.url }}
-        run: curl --fail --show-error --silent --retry 8 --retry-delay 5 "$URL/health"
+        run: |
+          curl --fail --show-error --silent --connect-timeout 5 --max-time 15 \
+            --retry 8 --retry-delay 5 --retry-connrefused "$URL/health" \
+            | python3 -c 'import json,sys; assert json.load(sys.stdin) == {"ok": True}'

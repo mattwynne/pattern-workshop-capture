@@ -1,5 +1,12 @@
-node_modules
-dist
-.git
-.env
-docs
+# Allowlist: credentials, artifacts, browser traces and local config never enter context.
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!tsconfig.json
+!src/
+!src/**
+!test/
+!test/**
+!public/
+!public/**

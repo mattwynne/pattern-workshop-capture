@@ -13,7 +13,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
-COPY --from=build /app/dist ./dist
+COPY --from=build /app/dist/src ./dist/src
 COPY public ./public
 USER node
 EXPOSE 8080

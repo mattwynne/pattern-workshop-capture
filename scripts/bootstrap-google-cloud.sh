@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set +x # Never trace credential reads or pipes, even when invoked with bash -x.
 set -euo pipefail
 
 PROJECT_ID="${1:-}"
@@ -37,6 +38,8 @@ fi
 gcloud config set project "$PROJECT_ID" >/dev/null
 gcloud services enable \
   artifactregistry.googleapis.com \
+  iam.googleapis.com \
+  cloudresourcemanager.googleapis.com \
   iamcredentials.googleapis.com \
   run.googleapis.com \
   secretmanager.googleapis.com \
@@ -64,19 +67,19 @@ for role in roles/artifactregistry.writer roles/run.admin; do
 done
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_EMAIL" \
   --member="serviceAccount:$DEPLOYER_EMAIL" --role=roles/iam.serviceAccountUser >/dev/null
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$RUNTIME_EMAIL" --role=roles/secretmanager.secretAccessor --condition=None >/dev/null
 
 if ! gcloud iam workload-identity-pools describe "$POOL" --location=global >/dev/null 2>&1; then
   gcloud iam workload-identity-pools create "$POOL" --location=global --display-name="GitHub Actions"
 fi
-if ! gcloud iam workload-identity-pools providers describe "$PROVIDER" --workload-identity-pool="$POOL" --location=global >/dev/null 2>&1; then
-  gcloud iam workload-identity-pools providers create-oidc "$PROVIDER" \
+PROVIDER_OPERATION=create-oidc
+if gcloud iam workload-identity-pools providers describe "$PROVIDER" --workload-identity-pool="$POOL" --location=global >/dev/null 2>&1; then
+  PROVIDER_OPERATION=update-oidc
+fi
+gcloud iam workload-identity-pools providers "$PROVIDER_OPERATION" "$PROVIDER" \
     --workload-identity-pool="$POOL" --location=global \
     --issuer-uri="https://token.actions.githubusercontent.com" \
     --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-    --attribute-condition="assertion.repository == '$GITHUB_REPOSITORY'"
-fi
+    --attribute-condition="assertion.repository == '$GITHUB_REPOSITORY' && assertion.ref == 'refs/heads/main' && assertion.event_name != 'pull_request'"
 
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 PRINCIPAL="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/attribute.repository/$GITHUB_REPOSITORY"
@@ -87,26 +90,34 @@ for secret in github-handbook-token openrouter-api-key; do
   if ! gcloud secrets describe "$secret" >/dev/null 2>&1; then
     gcloud secrets create "$secret" --replication-policy=automatic
   fi
+  gcloud secrets add-iam-policy-binding "$secret" \
+    --member="serviceAccount:$RUNTIME_EMAIL" --role=roles/secretmanager.secretAccessor --condition=None >/dev/null
 done
 
 echo
 read -rsp "Fine-grained GitHub token for the handbook repository: " GITHUB_TOKEN
 printf '\n'
-printf %s "$GITHUB_TOKEN" | gcloud secrets versions add github-handbook-token --data-file=- >/dev/null
+[[ -n "$GITHUB_TOKEN" ]] || { echo "Publishing token must not be empty" >&2; exit 1; }
+GITHUB_SECRET_VERSION="$(printf %s "$GITHUB_TOKEN" | gcloud secrets versions add github-handbook-token --data-file=- --format='value(name)')"
 unset GITHUB_TOKEN
 read -rsp "OpenRouter API key: " OPENROUTER_API_KEY
 printf '\n'
-printf %s "$OPENROUTER_API_KEY" | gcloud secrets versions add openrouter-api-key --data-file=- >/dev/null
+[[ -n "$OPENROUTER_API_KEY" ]] || { echo "OpenRouter key must not be empty" >&2; exit 1; }
+OPENROUTER_SECRET_VERSION="$(printf %s "$OPENROUTER_API_KEY" | gcloud secrets versions add openrouter-api-key --data-file=- --format='value(name)')"
 unset OPENROUTER_API_KEY
 
 WIF_PROVIDER="projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/providers/$PROVIDER"
-gh variable set GCP_PROJECT_ID --repo "$GITHUB_REPOSITORY" --body "$PROJECT_ID"
 gh variable set GCP_REGION --repo "$GITHUB_REPOSITORY" --body "$REGION"
 gh variable set GCP_ARTIFACT_REPOSITORY --repo "$GITHUB_REPOSITORY" --body "$REPOSITORY"
 gh variable set CLOUD_RUN_SERVICE --repo "$GITHUB_REPOSITORY" --body "$SERVICE"
 gh variable set CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT --repo "$GITHUB_REPOSITORY" --body "$RUNTIME_EMAIL"
 gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --repo "$GITHUB_REPOSITORY" --body "$WIF_PROVIDER"
 gh variable set GCP_DEPLOY_SERVICE_ACCOUNT --repo "$GITHUB_REPOSITORY" --body "$DEPLOYER_EMAIL"
+
+gh variable set HANDBOOK_TOKEN_VERSION --repo "$GITHUB_REPOSITORY" --body "${GITHUB_SECRET_VERSION##*/}"
+gh variable set OPENROUTER_API_KEY_VERSION --repo "$GITHUB_REPOSITORY" --body "${OPENROUTER_SECRET_VERSION##*/}"
+# Enable automatic deployment only after every other variable has been written.
+gh variable set GCP_PROJECT_ID --repo "$GITHUB_REPOSITORY" --body "$PROJECT_ID"
 
 echo
 echo "Bootstrap complete. GitHub Actions variables and Google Cloud secrets are configured."

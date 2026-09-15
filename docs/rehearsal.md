@@ -318,7 +318,7 @@ not crawl external links or claim that Pages has deployed. Set `HANDBOOK_CHECKOU
 to a local clone to avoid network cloning and `HUGO_BIN` to a local Hugo binary.
 Temporary validation files are removed even on failure.
 
-Final local validation: `npm run check` passed 43 tests; `npm run test:browser`
+Initial pre-hardening local validation: `npm run check` passed 43 tests; `npm run test:browser`
 passed 21 tests; the pinned Hugo clean build and all 18 local link/asset checks
 passed. The QR round-trip check is included in the 43-test suite.
 
@@ -401,7 +401,7 @@ was required or attempted. Other iterations' delivery gates are unchanged.
 - Runtime dependency: FFmpeg **6.1.1** installed and exercised on this host. Dockerfile
   installs FFmpeg in the runtime image; CI installs it before tests. The obsolete
   music-metadata dependency was removed. Docker is unavailable on this host, so
-  image build/execution and deployed FFmpeg behaviour remain pending; local binary
+  image build/execution was pending at that audit (see the final 007 audit below); deployed FFmpeg behaviour remains pending. Local binary
   tests do not prove the Alpine image or Cloud Run environment works.
 - Privacy evidence is deterministic test assertions plus code inspection: Multer
   memory storage; decoder pipes and pipe-only protocol allowlist; no media filesystem
@@ -532,3 +532,80 @@ background CPU and request-timeout/reconnect behaviour, real Pages integration,
 real room Wi-Fi/load and physical phone/projector readability, room-distance
 contrast and manual keyboard/screen-reader checks. None blocks the local Iteration
 006 audit, commit or push. No deployed or physical gate is marked passed.
+
+## Iteration 007 final credential-independent audit — 2026-09-15
+
+**Result:** Integrated release engineering hardening completed locally from clean
+`069918e` on main, including the recent 004/006 changes. Iteration 007 remains
+**Implemented locally** and the workshop remains **NO-GO**. No other iteration is
+started or marked Done. No cloud provisioning, OpenRouter calls, handbook
+publication, physical-device tests or printed-QR scans were performed in this audit.
+
+### Changes and audit coverage
+
+- Fixed the credential-gated Docker gap: every PR/main push builds the production
+  image and runs its exact CMD as non-root on a read-only filesystem with no
+  external network and explicitly non-secret dummy GitHub/OpenRouter configuration.
+  The smoke test checks fresh production-only dependencies, actual FFmpeg decoding,
+  Sharp WebP normalization, non-default PORT, health, static paths and redacted API
+  responses/log allowlists. Missing publishing configuration must fail startup.
+- The tested Docker image is saved as a one-day CI artifact, loaded for deployment
+  without rebuilding, pushed and deployed by digest. Runtime contains only compiled
+  application code, public assets and production dependencies; tests/dev modules,
+  credentials and operator artifacts are excluded. Docker context is allowlisted.
+- Pinned action revisions; added checksum-verified actionlint and shell syntax checks;
+  restricted deployment and WIF to main/non-PR runs, moved OIDC permission into the
+  deploy job, and made configuration failures explicit. Bootstrap now updates old
+  WIF conditions, enables required IAM APIs, grants per-secret runtime access and
+  writes the deployment-enabling project variable last. It was inspected and linted,
+  not executed against cloud resources. Existing older project-wide grants, if any,
+  require operator review; rerunning does not remove pre-existing grants.
+- Startup validates port and runnable FFmpeg without external calls or raw config
+  logging. Health bypasses JSON parsing and returns uncached local liveness only.
+  Existing request logging/provider error redaction and public/licensing/AI notices
+  were reviewed; regression checks cover private body/header/query markers and
+  validation-like upstream exceptions. QR errors now suppress invalid input values.
+- Numeric secret versions make rollback selection reproducible. Model overrides
+  survive CI deployments. The runbook records known-good revision/digest/config,
+  explicit rollback/return-to-latest traffic, credential rotation, model switching,
+  final stable URL QR generation and the [tomorrow checklist](deployment.md#tomorrow-checklist).
+  Per-revision caps do not guarantee one board during rollout; avoid mid-session
+  deployments. Rollback does not undo published Git content or restore room history.
+
+### Exact local validation
+
+- `npm ci`: clean install, audit reported zero vulnerabilities.
+- `npm run check`: TypeScript build and **68 unit/API tests passed** (including
+  health/parser independence, safe startup failures, QR round-trip/rejection,
+  50-client/100-pattern load, Git races/ambiguous retry and media/provider faults).
+- `npm run test:browser`: **38 Chromium tests passed**. These use emulated mobile
+  viewports, synthetic media/providers and a local publisher, not physical phones.
+- `HUGO_BIN=/tmp/hugo-007/hugo npm run check:hugo`: pinned Hugo extended 0.150.0,
+  **four HTML pages / 18 local links/assets passed**. Existing non-linked
+  section/taxonomy layout warnings remain; no live handbook content was changed.
+- `npm run check:workflow`: actionlint **1.7.12**, including ShellCheck **0.11.0**
+  when added to PATH, passed. ShellCheck on all `scripts/*.sh`, Bash syntax checks,
+  `node --check` on capture/dashboard/smoke scripts and `git diff --check` passed.
+- Fresh temporary production layout: copied only package manifests, `dist/src` and
+  `public`; `npm ci --omit=dev` installed Express 5.2.1, Multer 2.4.0 and Sharp 0.35.4.
+  `npm ls --omit=dev` passed; `npm start` and the shared runtime smoke passed with
+  dummy config on Node 24.18.0/host FFmpeg 6.1.1. No dev package was resolvable;
+  decoder, native WebP processing, health and all four static paths worked. Temporary
+  files/processes were removed. This host check does not prove Alpine compatibility.
+  The initial smoke fixture used a streaming WAV with unknown length, rejected by
+  the strict decoder; the smoke now builds a finite canonical WAV from generated PCM.
+- Docker is unavailable on this host. **Exact-main CI Docker build/execution is
+  awaiting the implementation push**; record the run below after objective validation.
+  No deployed Cloud Run runtime result is inferred from either host or Docker checks.
+
+### Remaining gates / blockers
+
+All entries in [Facilitated release gates](#facilitated-release-gates-none-fully-complete)
+retain their pending/partial status: Google credentials/billing/WIF/Secret Manager
+and deployed health; dedicated publishing credential and deployed GitHub/Pages
+concurrency/interrupted retry; working OpenRouter credential (prior key returned
+401), credits and successful real-model output; real cards/drawings/noisy recordings;
+physical iPhone/Android/HEIC and accessibility; room Wi-Fi/projector/load; final URL,
+actual printed QR scans; explicit facilitator go/no-go. Local automation cannot
+close these gates. No credential-independent application blocker is known; CI must
+still confirm the production Docker result before this audit is considered validated.

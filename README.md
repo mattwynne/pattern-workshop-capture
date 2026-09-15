@@ -9,8 +9,9 @@ Mobile-first capture and live progress for the Explore DDD 2026 workshop “Non-
 Requires FFmpeg on PATH (for bounded in-memory audio decoding), Node.js 22+ and a GitHub token with write access to the handbook repository.
 
 ```sh
-npm install
-GITHUB_TOKEN=... npm run dev
+npm ci
+# Supply GITHUB_TOKEN through your shell environment without putting it in history.
+npm run dev
 ```
 
 Open <http://localhost:8080>. The room dashboard is at <http://localhost:8080/dashboard.html>.
@@ -21,9 +22,13 @@ Open <http://localhost:8080>. The room dashboard is at <http://localhost:8080/da
 npm run check
 npx playwright install --with-deps chromium # once per development environment
 npm run test:browser
+npm run check:workflow
+# With Docker available:
+docker build --tag capture:local .
+npm run check:container -- capture:local
 ```
 
-The browser suite uses mobile Chromium emulation and a local stub publisher; it never writes to GitHub. CI runs both suites. Physical iPhone/Android checks remain necessary.
+The browser suite uses mobile Chromium emulation and a local stub publisher; it never writes to GitHub. CI runs both suites, validates the workflow and builds/smoke-tests the production image without cloud credentials. Physical iPhone/Android checks remain necessary.
 
 ## Deployment
 
