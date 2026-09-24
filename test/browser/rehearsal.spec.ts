@@ -69,6 +69,11 @@ for (const mode of ['photo', 'audio']) test(`${mode} network failure preserves a
   await expect(page.locator('#result-step')).toBeVisible(); expect(published).toHaveLength(1);
 });
 
+test('photo inputs allow selecting an existing picture', async ({ page }) => {
+  await expect(page.locator('#card-photo')).not.toHaveAttribute('capture');
+  await expect(page.locator('#avatar')).not.toHaveAttribute('capture');
+});
+
 test('microphone denial offers file fallback without changing text', async ({ page }) => {
   await page.evaluate(() => { navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Denied', 'NotAllowedError'); }; });
   await page.locator('#record-audio').click(); await expect(page.locator('#error')).toContainText('choose an audio file');
