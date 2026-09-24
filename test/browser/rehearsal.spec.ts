@@ -33,14 +33,20 @@ for (const mode of ['typed', 'photo', 'audio']) for (const attribution of ['grou
     if (attribution !== 'anonymous') await page.locator('#attributionName').fill('Table seven');
     if (mode !== 'typed') {
       await page.locator(mode === 'photo' ? '#card-photo' : '#audio-file').setInputFiles({ name: mode === 'photo' ? 'card.png' : 'speech.wav', mimeType: mode === 'photo' ? 'image/png' : 'audio/wav', buffer: mode === 'photo' ? await diagramFixture('marker') : wav() });
-      await page.locator(`#interpret-${mode}`).click();
-      await expect(page.locator('#suggestions')).toBeVisible();
-      await expect(page.locator('#name')).toHaveValue('Authored name');
-      if (mode === 'audio') await expect(page.locator('#transcript')).toContainText('We pass the pen.');
-      await page.getByRole('button', { name: 'Use solution', exact: true }).click();
-      await expect(page.locator('#solution')).toHaveValue('Suggested solution');
-      await expect(page.locator('#context')).toHaveValue('Authored context');
-      await page.getByRole('button', { name: 'Use all', exact: true }).click();
+      if (mode === 'photo') {
+        await expect(page.locator('#photo-status')).toContainText('Fields filled from photo');
+        await expect(page.locator('#suggestions')).toBeHidden();
+        for (const field of ['name', 'context', 'problem', 'solution']) await expect(page.locator(`#${field}`)).toHaveValue(`Suggested ${field}`);
+      } else {
+        await page.locator('#interpret-audio').click();
+        await expect(page.locator('#suggestions')).toBeVisible();
+        await expect(page.locator('#name')).toHaveValue('Authored name');
+        await expect(page.locator('#transcript')).toContainText('We pass the pen.');
+        await page.getByRole('button', { name: 'Use solution', exact: true }).click();
+        await expect(page.locator('#solution')).toHaveValue('Suggested solution');
+        await expect(page.locator('#context')).toHaveValue('Authored context');
+        await page.getByRole('button', { name: 'Use all', exact: true }).click();
+      }
       await page.locator('#name').fill('Reviewed name');
     }
     await page.reload();
@@ -61,12 +67,52 @@ for (const mode of ['typed', 'photo', 'audio']) for (const attribution of ['grou
 for (const mode of ['photo', 'audio']) test(`${mode} network failure preserves authored fields and manual publication`, async ({ page }) => {
   await page.route(`**/api/interpret/${mode}`, route => route.abort());
   await page.locator(mode === 'photo' ? '#card-photo' : '#audio-file').setInputFiles({ name: 'temporary', mimeType: mode === 'photo' ? 'image/png' : 'audio/webm', buffer: Buffer.from('temporary bytes') });
-  await page.locator(`#interpret-${mode}`).click(); await expect(page.locator('#error')).toBeVisible();
+  if (mode === 'audio') await page.locator('#interpret-audio').click();
+  await expect(page.locator('#error')).toBeVisible();
   for (const field of ['name', 'context', 'problem', 'solution']) await expect(page.locator(`#${field}`)).toHaveValue(`Authored ${field}`);
   await page.getByRole('radio', { name: 'Anonymous', exact: true }).check();
   await page.getByRole('button', { name: 'Review pattern', exact: true }).click();
   await page.getByRole('button', { name: 'Publish to handbook', exact: true }).click();
   await expect(page.locator('#result-step')).toBeVisible(); expect(published).toHaveLength(1);
+});
+
+test('photo fills only returned fields and keeps edits made while processing', async ({ page }) => {
+  let finish: (() => void) | undefined;
+  await page.route('**/api/interpret/photo', async route => {
+    await new Promise<void>(resolve => { finish = resolve; });
+    await route.fulfill({ json: { suggestions: { name: 'From photo', context: 'Old context', attributionName: 'Untrusted' } } });
+  });
+  await page.locator('#card-photo').setInputFiles({ name: 'card.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
+  await expect(page.locator('#photo-status')).toContainText('Reading photo');
+  await page.locator('#context').fill('Edited while reading');
+  await expect.poll(() => !!finish).toBeTruthy();
+  finish!();
+  await expect(page.locator('#name')).toHaveValue('From photo');
+  await expect(page.locator('#context')).toHaveValue('Edited while reading');
+  await expect(page.locator('#problem')).toHaveValue('Authored problem');
+  await expect(page.locator('#suggestions')).toBeHidden();
+  await page.reload();
+  await expect(page.locator('#name')).toHaveValue('From photo');
+  await expect(page.locator('#context')).toHaveValue('Edited while reading');
+});
+
+test('a later photo supersedes a pending photo result', async ({ page }) => {
+  await page.evaluate(() => {
+    const original = window.fetch;
+    let first = true;
+    window.fetch = (input, init) => {
+      if (String(input).endsWith('/interpret/photo') && first) {
+        first = false;
+        return new Promise(resolve => { (window as any).finishFirstPhoto = () => resolve(Response.json({ suggestions: { name: 'Stale photo' } })); });
+      }
+      return original(input, init);
+    };
+  });
+  await page.locator('#card-photo').setInputFiles({ name: 'first.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
+  await page.locator('#card-photo').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
+  await expect(page.locator('#name')).toHaveValue('Suggested name');
+  await page.evaluate(() => (window as any).finishFirstPhoto());
+  await expect(page.locator('#name')).toHaveValue('Suggested name');
 });
 
 test('microphone denial offers file fallback without changing text', async ({ page }) => {

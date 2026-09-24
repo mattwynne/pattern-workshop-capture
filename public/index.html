@@ -28,12 +28,12 @@
           <div class="tool-grid">
             <div class="capture-tool">
               <h3>Photograph a card</h3>
-              <p>We’ll read the writing, then discard the photo.</p>
+              <p>Choose a photo to fill the fields automatically. Check and edit them before reviewing; we’ll discard the photo.</p>
               <label class="file-picker">
                 <span>Take or choose photo</span>
                 <input id="card-photo" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment">
               </label>
-              <button id="interpret-photo" class="secondary compact" type="button" disabled>Suggest fields from photo</button>
+              <p id="photo-status" class="hint" role="status" aria-live="polite"></p>
             </div>
             <div class="capture-tool">
               <h3>Explain it aloud</h3>

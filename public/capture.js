@@ -109,8 +109,12 @@ function showReview(data) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function editableFields(next) {
+  return Object.fromEntries(Object.entries(next || {}).filter(([key, value]) => ['name', 'context', 'problem', 'solution'].includes(key) && typeof value === 'string' && value.trim()));
+}
+
 function renderSuggestions(next) {
-  next = Object.fromEntries(Object.entries(next || {}).filter(([key, value]) => ['name', 'context', 'problem', 'solution'].includes(key) && typeof value === 'string' && value.trim()));
+  next = editableFields(next);
   suggestions = next;
   const list = document.querySelector('#suggestion-list');
   list.replaceChildren(...Object.entries(next).filter(([, value]) => value).map(([field, value]) => {
@@ -130,11 +134,13 @@ function clearResults() {
   const transcript = document.querySelector('#transcript'); transcript.textContent = ''; transcript.hidden = true;
 }
 let interpretationVersion = 0;
-async function interpretFile(endpoint, fieldName, file, button, signal, isCurrent = () => true) {
+async function interpretFile(endpoint, fieldName, file, button, signal, isCurrent = () => true, onSuggestions = renderSuggestions) {
   const generation = ++interpretationVersion;
   const current = () => generation === interpretationVersion && isCurrent() && !signal?.aborted;
   clearResults();
-  showError(''); button.disabled = true; const original = button.textContent; button.textContent = 'Working…';
+  showError('');
+  const original = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = 'Working…'; }
   try {
     const body = new FormData(); body.append(fieldName, file, file.name || `${fieldName}.webm`);
     const response = await fetch(endpoint, { method: 'POST', body, signal });
@@ -142,10 +148,14 @@ async function interpretFile(endpoint, fieldName, file, button, signal, isCurren
     if (!current()) return;
     if (!response.ok) throw new Error(result.error || 'Interpretation failed');
     if (result.transcript) { const transcript = document.querySelector('#transcript'); transcript.textContent = result.transcript; transcript.hidden = false; }
-    renderSuggestions(result.suggestions);
+    onSuggestions(result.suggestions);
     if (result.warning) showError(result.warning);
-  } catch (error) { if (generation === interpretationVersion && isCurrent()) showError(signal?.aborted ? 'Transcription timed out. Record again or enter the fields manually.' : error.message); }
-  finally { if (!signal) { button.disabled = false; button.textContent = original; } }
+  } catch (error) {
+    if (generation === interpretationVersion && isCurrent()) {
+      showError(signal?.aborted && fieldName === 'audio' ? 'Transcription timed out. Record again or enter the fields manually.' : error.message);
+      if (fieldName === 'photo') photoStatus.textContent = 'Could not read this photo. Try another or edit the fields manually.';
+    }
+  } finally { if (button && !signal) { button.disabled = false; button.textContent = original; } }
 }
 
 form.addEventListener('input', event => { saveLocally(); if (event.target.id === 'name') { clearTimeout(updateTimer); updateTimer = setTimeout(() => updateDraftName(), 250); } });
@@ -153,9 +163,29 @@ form.addEventListener('change', updateAttribution);
 form.addEventListener('submit', event => { event.preventDefault(); showError(''); try { showReview(validate()); } catch (error) { showError(error.message); } });
 
 const photoInput = document.querySelector('#card-photo');
-const photoButton = document.querySelector('#interpret-photo');
-photoInput.addEventListener('change', () => { photoButton.disabled = !photoInput.files[0]; });
-photoButton.addEventListener('click', () => interpretFile('/api/interpret/photo', 'photo', photoInput.files[0], photoButton));
+const photoStatus = document.querySelector('#photo-status');
+let photoVersion = 0, photoRequest;
+photoInput.addEventListener('change', () => {
+  photoRequest?.abort();
+  const version = ++photoVersion;
+  const file = photoInput.files[0];
+  photoInput.value = ''; // The photo is only needed for this request, never the draft.
+  if (!file) { photoStatus.textContent = ''; return; }
+  const controller = new AbortController(); photoRequest = controller;
+  const unchanged = Object.fromEntries(['name', 'context', 'problem', 'solution'].map(field => [field, document.querySelector(`#${field}`).value]));
+  photoStatus.textContent = 'Reading photo… You can continue editing.';
+  interpretFile('/api/interpret/photo', 'photo', file, null, controller.signal, () => version === photoVersion, next => {
+    const fields = editableFields(next);
+    let applied = 0;
+    for (const [field, value] of Object.entries(fields)) {
+      const input = document.querySelector(`#${field}`);
+      if (input.value !== unchanged[field]) continue; // Keep edits made while the photo was processing.
+      input.value = value; applied++;
+    }
+    if (applied) { saveLocally(); if (fields.name) updateDraftName(); }
+    photoStatus.textContent = applied ? 'Fields filled from photo. Check and edit them before reviewing.' : 'No fields were filled. Edit them manually or choose another photo.';
+  }).finally(() => { if (version === photoVersion) photoRequest = undefined; });
+});
 
 document.querySelector('#use-all-suggestions').addEventListener('click', () => {
   for (const [field, value] of Object.entries(suggestions)) if (value) document.querySelector(`#${field}`).value = value;
