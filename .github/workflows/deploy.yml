@@ -128,7 +128,12 @@ jobs:
           docker load --input /tmp/capture-image/capture-image.tar
           docker tag capture:${{ github.sha }} "$IMAGE"
           docker push "$IMAGE"
-          echo "image=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")" >> "$GITHUB_OUTPUT"
+          # Loaded artifacts can list a local capture@ digest first. Resolve the
+          # pushed image in Artifact Registry, not Docker's unordered RepoDigests.
+          DIGEST="$(gcloud artifacts docker images describe "$IMAGE" \
+            --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
+          [[ "$DIGEST" == "${IMAGE%:*}@sha256:"* ]]
+          echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
       - id: deploy
         name: Deploy to Cloud Run
