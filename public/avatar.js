@@ -1,6 +1,6 @@
 // Media lives only in this page's memory. Never put it in draft storage.
 export function setupAvatar() {
-  const input = document.querySelector('#avatar');
+  const inputs = document.querySelectorAll('#avatar, #avatar-camera');
   const comparison = document.querySelector('#avatar-comparison');
   const status = document.querySelector('#avatar-status');
   const originalImage = document.querySelector('#avatar-preview');
@@ -23,10 +23,11 @@ export function setupAvatar() {
   function display(image, blob) {
     const url = URL.createObjectURL(blob); urls.push(url); image.src = url;
   }
-  input.addEventListener('change', async () => {
+  for (const input of inputs) input.addEventListener('change', async () => {
     const current = ++generation;
     clear();
     const file = input.files[0];
+    input.value = ''; // Both pickers can select the same photo again; retain media only in memory.
     pending = !!file;
     document.querySelector('#avatar-alt-wrap').hidden = !file;
     status.textContent = file ? 'Preparing your picture… You can continue with the original if cleanup is unavailable.' : '';
@@ -40,14 +41,12 @@ export function setupAvatar() {
       const response = await fetch('/api/avatars/previews', { method: 'POST', body, signal: requestController.signal });
       const result = await response.json();
       if (!response.ok) {
-        if (response.status === 400 && current === generation) { original = undefined; input.value = ''; }
+        if (response.status === 400 && current === generation) original = undefined;
         throw new Error(result.error || 'Preview unavailable');
       }
       const blobs = await Promise.all([fetch(result.original).then(r => r.blob()), result.cleaned ? fetch(result.cleaned).then(r => r.blob()) : undefined]);
       if (current !== generation) return;
       [original, cleaned] = blobs;
-      // Raw bytes are no longer needed after normalization.
-      input.value = '';
       status.textContent = result.warning || 'Compare both pictures and choose one. The original is selected by default.';
     } catch (error) {
       if (current !== generation) return;
@@ -63,7 +62,7 @@ export function setupAvatar() {
     }
   });
   document.querySelector('#remove-avatar').addEventListener('click', () => {
-    ++generation; clear(); pending = false; input.value = '';
+    ++generation; clear(); pending = false;
     document.querySelector('#avatar-alt-wrap').hidden = true;
     status.textContent = '';
   });
@@ -79,6 +78,6 @@ export function setupAvatar() {
       const selected = this.selected();
       if (selected) body.append('avatar', selected, selected.type === 'image/webp' ? 'avatar.webp' : 'avatar');
     },
-    discard() { ++generation; clear(); input.value = ''; pending = false; },
+    discard() { ++generation; clear(); pending = false; },
   };
 }

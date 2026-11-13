@@ -165,9 +165,32 @@ test('a later photo supersedes a pending photo result', async ({ page }) => {
   await expect(page.locator('#attributionName')).toHaveValue('Alex Rivera, Sam Chen');
 });
 
-test('photo inputs allow selecting an existing picture', async ({ page }) => {
-  await expect(page.locator('#card-photo')).not.toHaveAttribute('capture');
-  await expect(page.locator('#avatar')).not.toHaveAttribute('capture');
+test('photo controls offer separate camera and library inputs', async ({ page }) => {
+  for (const [camera, library, take, choose] of [
+    ['card-photo-camera', 'card-photo', 'Take photo', 'Choose photo'],
+    ['avatar-camera', 'avatar', 'Take a picture', 'Choose a picture'],
+  ]) {
+    await expect(page.getByLabel(take, { exact: true })).toHaveAttribute('capture', 'environment');
+    await expect(page.getByLabel(choose, { exact: true })).not.toHaveAttribute('capture');
+    for (const id of [camera, library]) {
+      const chooserPromise = page.waitForEvent('filechooser');
+      await page.locator(`label:has(#${id})`).click();
+      const chooser = await chooserPromise;
+      expect(await chooser.element().getAttribute('id')).toBe(id);
+    }
+  }
+});
+
+test('camera photo fills fields and can be replaced by a library photo', async ({ page }) => {
+  const photo = { name: 'camera.png', mimeType: 'image/png', buffer: await diagramFixture('marker') };
+  await page.locator('#card-photo-camera').setInputFiles(photo);
+  await expect(page.locator('#photo-status')).toContainText('Fields filled from photo');
+  await expect(page.locator('#name')).toHaveValue('Suggested name');
+  await expect(page.locator('#card-photo-camera')).toHaveValue('');
+  await page.locator('#name').fill('Changed after camera');
+  await page.locator('#card-photo').setInputFiles(photo);
+  await expect(page.locator('#name')).toHaveValue('Suggested name');
+  await expect(page.locator('#card-photo')).toHaveValue('');
 });
 
 test('microphone denial offers file fallback without changing text', async ({ page }) => {

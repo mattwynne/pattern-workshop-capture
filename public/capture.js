@@ -163,10 +163,10 @@ form.addEventListener('input', event => { saveLocally(); if (event.target.id ===
 form.addEventListener('change', updateAttribution);
 form.addEventListener('submit', event => { event.preventDefault(); showError(''); try { showReview(validate()); } catch (error) { showError(error.message); } });
 
-const photoInput = document.querySelector('#card-photo');
+const photoInputs = document.querySelectorAll('#card-photo, #card-photo-camera');
 const photoStatus = document.querySelector('#photo-status');
 let photoVersion = 0, photoRequest;
-photoInput.addEventListener('change', () => {
+for (const photoInput of photoInputs) photoInput.addEventListener('change', () => {
   photoRequest?.abort();
   const version = ++photoVersion;
   const file = photoInput.files[0];

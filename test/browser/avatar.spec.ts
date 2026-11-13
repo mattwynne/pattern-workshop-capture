@@ -23,10 +23,10 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('radio', { name: 'Anonymous', exact: true }).check();
 });
 
-for (const selection of ['Original', 'Gently cleaned']) {
-  test(`mobile comparison publishes exactly the reviewed ${selection} with alt text`, async ({ page }) => {
+for (const input of ['avatar', 'avatar-camera']) for (const selection of ['Original', 'Gently cleaned']) {
+  test(`${input} mobile comparison publishes exactly the reviewed ${selection} with alt text`, async ({ page }) => {
     const responsePromise = page.waitForResponse('**/api/avatars/previews');
-    await page.locator('#avatar').setInputFiles({ name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
+    await page.locator(`#${input}`).setInputFiles({ name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
     const previews = await (await responsePromise).json();
     await expect(page.locator('#avatar-cleaned-choice')).toBeEnabled();
     await expect(page.locator('#avatar-original-choice')).toBeChecked();
@@ -77,7 +77,7 @@ test('cleanup failure, replacement, and removal cannot reuse an old selection', 
     delete body.cleaned; body.warning = 'Cleanup was unavailable. You can still publish the original.';
     await route.fulfill({ json: body });
   });
-  await page.locator('#avatar').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: await diagramFixture('pencil') });
+  await page.locator('#avatar-camera').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: await diagramFixture('pencil') });
   await expect(page.locator('#avatar-status')).toContainText('Cleanup was unavailable');
   await expect(page.locator('#avatar-original-choice')).toBeChecked();
   await expect(page.locator('#avatar-cleaned-choice')).toBeDisabled();
