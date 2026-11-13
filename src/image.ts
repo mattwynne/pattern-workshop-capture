@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import type { PhotoPicture } from "./openrouter.js";
 
 export interface PublicAvatar {
   bytes: Buffer;
@@ -30,6 +31,24 @@ export async function normalizeAvatar(bytes: Buffer, contentType: string): Promi
   } catch {
     throw new Error("Choose another image; that image could not be read");
   }
+}
+
+// Crop the actual photographed marks, never an AI-generated replacement. Rotate
+// first so the normalized bounds refer to the same orientation the model saw.
+export async function cropPhotoPicture(bytes: Buffer, region: PhotoPicture): Promise<PublicAvatar> {
+  const { x, y, width, height } = region;
+  if (![x, y, width, height].every(Number.isFinite) || x < 0 || y < 0
+    || width <= 0 || height <= 0 || x + width > 1 || y + height > 1) {
+    throw new Error("Invalid picture bounds");
+  }
+  const { data, info } = await sharp(bytes, { limitInputPixels: 40_000_000 })
+    .rotate().png().toBuffer({ resolveWithObject: true });
+  const left = Math.floor(x * info.width), top = Math.floor(y * info.height);
+  const right = Math.min(info.width, Math.ceil((x + width) * info.width));
+  const bottom = Math.min(info.height, Math.ceil((y + height) * info.height));
+  return avatar(await sharp(data).extract({ left, top, width: right - left, height: bottom - top })
+    .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
+    .webp({ lossless: true }).toBuffer());
 }
 
 export async function cleanAvatar(original: PublicAvatar): Promise<PublicAvatar> {

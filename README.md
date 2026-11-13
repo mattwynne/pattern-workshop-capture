@@ -48,10 +48,12 @@ After bootstrap, every push to `main` tests and deploys the application to Cloud
 - `TRANSCRIPTION_MODEL` — defaults to `openai/whisper-1`
 - `SYNTHESIS_MODEL` — defaults to `google/gemini-2.5-flash`
 
-Card photos and audio are held only in request memory while OpenRouter processes them; they are neither stored nor published. Draft form content is retained in the participant's browser. Live dashboard state is deliberately ephemeral in this first release and resets if the capture server restarts.
+Card photos and audio are held only in request memory while OpenRouter processes them; source files are neither stored nor published. When a card contains a separate drawing, the vision model suggests its bounds and a short description. The app crops the actual photo (it does not generate a replacement drawing), strips metadata, and fills the picture comparison for review. Invalid or missing bounds leave the picture empty; a crop failure still returns the text fields. An existing picture or edits made during processing are not replaced. Draft form content is retained in the participant's browser. Live dashboard state is deliberately ephemeral in this first release and resets if the capture server restarts.
 
 
 ## Avatar comparison
+
+`POST /api/interpret/photo` returns text `suggestions` and, when a drawing is found, an `avatar` with `original`, optional `cleaned`, editable `alt`, and optional cleanup `warning`. Check the crop: model-suggested bounds can be wrong. Replace or remove it using the usual picture controls. Extracted pictures stay only in page memory until publication, and reloading discards them.
 
 `POST /api/avatars/previews` accepts one multipart `avatar` (up to 16 MiB). It returns metadata-free WebP data URLs in `original` and optional `cleaned`, plus a `warning` if cleanup fails. Responses are not cacheable; the service retains no image state.
 

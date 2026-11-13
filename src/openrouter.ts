@@ -10,6 +10,27 @@ export interface PatternSuggestions {
   attributionName?: string;
 }
 
+export interface PhotoPicture {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  alt: string;
+}
+
+export interface PhotoSuggestions extends PatternSuggestions {
+  picture?: PhotoPicture;
+}
+
+function photoPicture(value: unknown): PhotoPicture | undefined {
+  if (!value || typeof value !== "object") return;
+  const { x, y, width, height, alt } = value as PhotoPicture;
+  if (![x, y, width, height].every(n => typeof n === "number" && Number.isFinite(n))
+    || x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1 || y + height > 1
+    || typeof alt !== "string" || !alt.trim()) return;
+  return { x, y, width, height, alt: alt.trim().slice(0, 240) };
+}
+
 export interface SpeechInterpretation {
   transcript: string;
   suggestions: PatternSuggestions;
@@ -32,6 +53,17 @@ const photoSchema = {
   properties: {
     ...schema.properties,
     attributionName: { type: "string", description: "Explicitly credited contributor names or group name, not the pattern title. Empty when absent." },
+    picture: {
+      type: ["object", "null"],
+      description: "Bounding box of the pattern's drawing or diagram, excluding surrounding card text. Null if absent or uncertain. Coordinates are fractions of the oriented image dimensions, from 0 to 1.",
+      properties: {
+        x: { type: "number" }, y: { type: "number" },
+        width: { type: "number" }, height: { type: "number" },
+        alt: { type: "string", description: "Short description of the drawing for someone who cannot see it; at most 240 characters." },
+      },
+      required: ["x", "y", "width", "height", "alt"],
+      additionalProperties: false,
+    },
   },
 };
 
@@ -45,7 +77,7 @@ export class OpenRouter {
     private timeoutMs = 60_000,
   ) {}
 
-  private async callChat(model: string, content: unknown, signal?: AbortSignal, responseSchema = schema): Promise<PatternSuggestions> {
+  private async callChat(model: string, content: unknown, signal?: AbortSignal, responseSchema = schema): Promise<PhotoSuggestions> {
     const response = await this.fetcher("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.any([AbortSignal.timeout(this.timeoutMs), ...(signal ? [signal] : [])]),
@@ -66,13 +98,18 @@ export class OpenRouter {
     try {
       const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
       if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error();
-      return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => Object.hasOwn(responseSchema.properties, key) && typeof value === "string" && value.trim())) as PatternSuggestions;
+      const suggestions: PhotoSuggestions = Object.fromEntries(Object.entries(parsed).filter(([key, value]) => key !== "picture" && Object.hasOwn(responseSchema.properties, key) && typeof value === "string" && value.trim()));
+      if (responseSchema === photoSchema) {
+        const picture = photoPicture(parsed.picture);
+        if (picture) suggestions.picture = picture;
+      }
+      return suggestions;
     } catch {
       throw new Error("AI interpretation returned an unexpected response");
     }
   }
 
-  async interpretPhoto(bytes: Buffer): Promise<PatternSuggestions> {
+  async interpretPhoto(bytes: Buffer): Promise<PhotoSuggestions> {
     let image: Buffer;
     try {
       image = await sharp(bytes, { limitInputPixels: 40_000_000 })
@@ -82,7 +119,7 @@ export class OpenRouter {
       throw new Error("That card photo could not be read");
     }
     return this.callChat(this.visionModel, [
-      { type: "text", text: "Read this workshop card and suggest a pattern using Name, Context, Problem, and Solution. Name is the pattern title, not its authors. Also extract explicitly credited contributor names or a group name into attributionName, preserving spelling and listing all credited contributors together. Do not treat people mentioned in the pattern's examples as contributors or infer identities from its content. Preserve the contributors' meaning and wording. Do not invent missing details or contributor names; use an empty string when the card does not provide a field." },
+      { type: "text", text: "Read this workshop card and suggest a pattern using Name, Context, Problem, and Solution. Name is the pattern title, not its authors. Also extract explicitly credited contributor names or a group name into attributionName, preserving spelling and listing all credited contributors together. Do not treat people mentioned in the pattern's examples as contributors or infer identities from its content. Preserve the contributors' meaning and wording. Do not invent missing details or contributor names; use an empty string when the card does not provide a field. If the card includes a picture, drawing or diagram representing the pattern, locate it in picture using normalized x, y, width and height (0 to 1, origin at the top left of this image), and describe it in alt. Include all the drawing's marks and internal labels, with a little margin, but exclude surrounding written pattern fields, contributor names, faces and background objects. Do not select the whole card or ordinary written text as a picture. Return picture: null when no separate illustration is present or its bounds are uncertain. Do not invent or redraw an illustration." },
       { type: "image_url", image_url: { url: `data:image/webp;base64,${image.toString("base64")}` } },
     ], undefined, photoSchema);
   }

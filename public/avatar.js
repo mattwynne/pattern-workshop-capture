@@ -67,6 +67,26 @@ export function setupAvatar() {
     status.textContent = '';
   });
   return {
+    version: () => generation,
+    async usePhoto(previews, expectedVersion, isCurrent) {
+      const canApply = () => generation === expectedVersion && !original && !pending && isCurrent();
+      if (!previews || !canApply()) return false;
+      try {
+        const blobs = await Promise.all([fetch(previews.original).then(r => r.blob()), previews.cleaned ? fetch(previews.cleaned).then(r => r.blob()) : undefined]);
+        if (!canApply()) return false;
+        ++generation; clear();
+        [original, cleaned] = blobs;
+        display(originalImage, original);
+        if (cleaned) { display(cleanedImage, cleaned); cleanedImage.hidden = false; cleanedRadio.disabled = false; }
+        comparison.hidden = false;
+        document.querySelector('#avatar-alt-wrap').hidden = false;
+        status.textContent = previews.warning || 'Picture taken from the card. Check the crop and description, then choose the original or gently cleaned version. You can replace or remove it.';
+        return true;
+      } catch {
+        if (canApply()) status.textContent = 'The card picture could not be loaded. Choose a separate picture if needed.';
+        return false;
+      }
+    },
     selected: () => cleanedRadio.checked && cleaned ? cleaned : original,
     validate() { if (pending) throw new Error('Your picture is still being prepared. Wait a moment or remove it.'); },
     review(image, alt) {

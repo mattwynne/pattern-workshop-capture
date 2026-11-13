@@ -24,11 +24,11 @@
       <div id="capture-step" class="panel">
         <section class="capture-tools" aria-labelledby="capture-tools-title">
           <h2 id="capture-tools-title">Bring in your group’s work</h2>
-          <p class="hint">Optional helpers—everything they suggest remains editable. Photos and audio are sent to OpenRouter for AI processing and discarded by this app after the request.</p>
+          <p class="hint">Optional helpers—everything they suggest remains editable. Photos and audio are sent to OpenRouter for AI processing. Source files are discarded after the request; an extracted picture stays in this page for your review.</p>
           <div class="tool-grid">
             <div class="capture-tool">
               <h3>Photograph a card</h3>
-              <p>Choose a photo to fill the fields automatically. Check and edit them before reviewing; we’ll discard the photo.</p>
+              <p>Take or choose a photo to fill the fields and, when present, the card’s drawing. Check the text, picture crop and description before publishing. A picture you’ve already chosen won’t be replaced.</p>
               <label class="file-picker">
                 <span>Take photo</span>
                 <input id="card-photo-camera" type="file" accept="image/*" capture="environment">
@@ -139,7 +139,7 @@
           <h3>Solution</h3><div id="review-solution"></div>
           <p id="review-attribution" class="attribution"></p>
         </article>
-        <p class="notice">Publishing makes this contribution public under CC BY-SA 4.0. Temporary photos and recordings used for interpretation are processed by OpenRouter, are not published, and are not retained by this app.</p>
+        <p class="notice">Publishing makes this contribution public under CC BY-SA 4.0. Source card photos and recordings are processed by OpenRouter and discarded by this app. Only the picture selected above is published, including any drawing extracted from a card.</p>
         <div class="actions">
           <button id="back-button" class="secondary" type="button">← Keep editing</button>
           <button id="publish-button" class="primary" type="button">Publish to handbook</button>

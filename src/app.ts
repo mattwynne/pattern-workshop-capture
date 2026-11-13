@@ -4,9 +4,14 @@ import express from "express";
 import multer from "multer";
 import { DraftBoard } from "./drafts.js";
 import type { PatternPublisher } from "./github.js";
-import { avatarPreviews, cleanAvatar, normalizeAvatar } from "./image.js";
+import { avatarPreviews, cleanAvatar, cropPhotoPicture, normalizeAvatar, type AvatarPreviews } from "./image.js";
 import type { OpenRouter } from "./openrouter.js";
 import { validatePattern } from "./pattern.js";
+
+function previewUrls(previews: AvatarPreviews) {
+  const dataUrl = (image: AvatarPreviews["original"]) => `data:image/webp;base64,${image.bytes.toString("base64")}`;
+  return { original: dataUrl(previews.original), cleaned: previews.cleaned ? dataUrl(previews.cleaned) : undefined, warning: previews.warning };
+}
 
 export function createApp(publisher: PatternPublisher, board = new DraftBoard(), ai?: OpenRouter, cleanup: typeof cleanAvatar = cleanAvatar, log: LogSink = jsonLog) {
   const app = express();
@@ -45,9 +50,21 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
     if (!ai) return response.status(503).json({ error: "AI interpretation is not configured" });
     if (!request.file) return response.status(400).json({ error: "Choose a card photo first" });
     try {
-      response.json({ suggestions: await ai.interpretPhoto(request.file.buffer) });
+      const { picture, ...suggestions } = await ai.interpretPhoto(request.file.buffer);
+      let avatar, warning;
+      if (picture) {
+        try {
+          const cropped = await cropPhotoPicture(request.file.buffer, picture);
+          avatar = { ...previewUrls(await avatarPreviews(cropped.bytes, cropped.contentType, cleanup)), alt: picture.alt };
+        } catch {
+          warning = "The fields are ready, but the picture could not be extracted. Choose a separate picture if needed.";
+        }
+      }
+      response.json({ suggestions, avatar, warning });
     } catch (error) {
       response.status(502).json({ error: "Photo interpretation failed. Try again or enter the fields manually." });
+    } finally {
+      request.file.buffer = Buffer.alloc(0);
     }
   });
   app.post("/api/interpret/audio", audioUpload.single("audio"), async (request, response) => {
@@ -73,8 +90,7 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
     if (!request.file) return response.status(400).json({ error: "Choose a picture first" });
     try {
       const previews = await avatarPreviews(request.file.buffer, request.file.mimetype, cleanup);
-      const dataUrl = (image: typeof previews.original) => `data:image/webp;base64,${image.bytes.toString("base64")}`;
-      response.json({ original: dataUrl(previews.original), cleaned: previews.cleaned ? dataUrl(previews.cleaned) : undefined, warning: previews.warning });
+      response.json(previewUrls(previews));
     } catch (error) {
       response.status(400).json({ error: error instanceof Error ? error.message : "Choose another image" });
     }

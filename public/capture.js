@@ -149,8 +149,8 @@ async function interpretFile(endpoint, fieldName, file, button, signal, isCurren
     if (!current()) return;
     if (!response.ok) throw new Error(result.error || 'Interpretation failed');
     if (result.transcript) { const transcript = document.querySelector('#transcript'); transcript.textContent = result.transcript; transcript.hidden = false; }
-    onSuggestions(result.suggestions);
-    if (result.warning) showError(result.warning);
+    await onSuggestions(result.suggestions, result, current);
+    if (current() && result.warning) showError(result.warning);
   } catch (error) {
     if (generation === interpretationVersion && isCurrent()) {
       showError(signal?.aborted && fieldName === 'audio' ? 'Transcription timed out. Record again or enter the fields manually.' : error.message);
@@ -173,10 +173,11 @@ for (const photoInput of photoInputs) photoInput.addEventListener('change', () =
   photoInput.value = ''; // The photo is only needed for this request, never the draft.
   if (!file) { photoStatus.textContent = ''; return; }
   const controller = new AbortController(); photoRequest = controller;
-  const unchanged = Object.fromEntries(photoFields.map(field => [field, document.querySelector(`#${field}`).value]));
+  const avatarVersion = avatar.version();
+  const unchanged = Object.fromEntries([...photoFields, 'avatarAlt'].map(field => [field, document.querySelector(`#${field}`).value]));
   const attributionKind = document.querySelector('[name="attributionKind"]:checked').value;
   photoStatus.textContent = 'Reading photo… You can continue editing.';
-  interpretFile('/api/interpret/photo', 'photo', file, null, controller.signal, () => version === photoVersion, next => {
+  interpretFile('/api/interpret/photo', 'photo', file, null, controller.signal, () => version === photoVersion, async (next, result, isCurrent) => {
     const fields = editableFields(next, photoFields);
     let applied = 0;
     for (const [field, value] of Object.entries(fields)) {
@@ -188,7 +189,16 @@ for (const photoInput of photoInputs) photoInput.addEventListener('change', () =
       input.value = value; applied++;
     }
     if (applied) { saveLocally(); if (fields.name) updateDraftName(); }
+    const pictureApplied = await avatar.usePhoto(result.avatar, avatarVersion, isCurrent);
+    if (!isCurrent()) return;
+    if (pictureApplied) {
+      const alt = document.querySelector('#avatarAlt');
+      if (alt.value === unchanged.avatarAlt && typeof result.avatar.alt === 'string') {
+        alt.value = result.avatar.alt.slice(0, 240); saveLocally();
+      }
+    }
     photoStatus.textContent = applied ? 'Fields filled from photo. Check and edit them before reviewing.' : 'No fields were filled. Edit them manually or choose another photo.';
+    if (pictureApplied) photoStatus.textContent += ' Picture filled too—check the crop and description below.';
   }).finally(() => { if (version === photoVersion) photoRequest = undefined; });
 });
 
