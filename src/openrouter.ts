@@ -7,6 +7,7 @@ export interface PatternSuggestions {
   context?: string;
   problem?: string;
   solution?: string;
+  attributionName?: string;
 }
 
 export interface SpeechInterpretation {
@@ -26,6 +27,14 @@ const schema = {
   additionalProperties: false,
 };
 
+const photoSchema = {
+  ...schema,
+  properties: {
+    ...schema.properties,
+    attributionName: { type: "string", description: "Explicitly credited contributor names or group name, not the pattern title. Empty when absent." },
+  },
+};
+
 export class OpenRouter {
   constructor(
     private apiKey: string,
@@ -36,7 +45,7 @@ export class OpenRouter {
     private timeoutMs = 60_000,
   ) {}
 
-  private async callChat(model: string, content: unknown, signal?: AbortSignal): Promise<PatternSuggestions> {
+  private async callChat(model: string, content: unknown, signal?: AbortSignal, responseSchema = schema): Promise<PatternSuggestions> {
     const response = await this.fetcher("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.any([AbortSignal.timeout(this.timeoutMs), ...(signal ? [signal] : [])]),
@@ -44,7 +53,7 @@ export class OpenRouter {
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content }],
-        response_format: { type: "json_schema", json_schema: { name: "pattern_suggestions", strict: true, schema } },
+        response_format: { type: "json_schema", json_schema: { name: "pattern_suggestions", strict: true, schema: responseSchema } },
       }),
     });
     if (!response.ok) throw new Error(`AI interpretation failed (${response.status})`);
@@ -57,7 +66,7 @@ export class OpenRouter {
     try {
       const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")) as Record<string, unknown>;
       if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error();
-      return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => Object.hasOwn(schema.properties, key) && typeof value === "string" && value.trim())) as PatternSuggestions;
+      return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => Object.hasOwn(responseSchema.properties, key) && typeof value === "string" && value.trim())) as PatternSuggestions;
     } catch {
       throw new Error("AI interpretation returned an unexpected response");
     }
@@ -73,9 +82,9 @@ export class OpenRouter {
       throw new Error("That card photo could not be read");
     }
     return this.callChat(this.visionModel, [
-      { type: "text", text: "Read this workshop card and suggest a pattern using Name, Context, Problem, and Solution. Preserve the contributors' meaning and wording. Do not invent missing details; use an empty string when the card does not provide a field." },
+      { type: "text", text: "Read this workshop card and suggest a pattern using Name, Context, Problem, and Solution. Name is the pattern title, not its authors. Also extract explicitly credited contributor names or a group name into attributionName, preserving spelling and listing all credited contributors together. Do not treat people mentioned in the pattern's examples as contributors or infer identities from its content. Preserve the contributors' meaning and wording. Do not invent missing details or contributor names; use an empty string when the card does not provide a field." },
       { type: "image_url", image_url: { url: `data:image/webp;base64,${image.toString("base64")}` } },
-    ]);
+    ], undefined, photoSchema);
   }
 
   async interpretSpeech(bytes: Buffer, mimeType: string, signal?: AbortSignal): Promise<SpeechInterpretation> {

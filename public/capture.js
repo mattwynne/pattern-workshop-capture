@@ -7,7 +7,8 @@ const reviewStep = document.querySelector('#review-step');
 const resultStep = document.querySelector('#result-step');
 const errorBox = document.querySelector('#error');
 const publishButton = document.querySelector('#publish-button');
-const fields = ['name', 'context', 'problem', 'solution', 'attributionName', 'avatarAlt'];
+const photoFields = ['name', 'context', 'problem', 'solution', 'attributionName'];
+const fields = [...photoFields, 'avatarAlt'];
 const storageKey = 'pattern-workshop-draft';
 let draftId;
 let updateTimer;
@@ -109,8 +110,8 @@ function showReview(data) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function editableFields(next) {
-  return Object.fromEntries(Object.entries(next || {}).filter(([key, value]) => ['name', 'context', 'problem', 'solution'].includes(key) && typeof value === 'string' && value.trim()));
+function editableFields(next, allowed = ['name', 'context', 'problem', 'solution']) {
+  return Object.fromEntries(Object.entries(next || {}).filter(([key, value]) => allowed.includes(key) && typeof value === 'string' && value.trim()));
 }
 
 function renderSuggestions(next) {
@@ -172,12 +173,16 @@ photoInput.addEventListener('change', () => {
   photoInput.value = ''; // The photo is only needed for this request, never the draft.
   if (!file) { photoStatus.textContent = ''; return; }
   const controller = new AbortController(); photoRequest = controller;
-  const unchanged = Object.fromEntries(['name', 'context', 'problem', 'solution'].map(field => [field, document.querySelector(`#${field}`).value]));
+  const unchanged = Object.fromEntries(photoFields.map(field => [field, document.querySelector(`#${field}`).value]));
+  const attributionKind = document.querySelector('[name="attributionKind"]:checked').value;
   photoStatus.textContent = 'Reading photo… You can continue editing.';
   interpretFile('/api/interpret/photo', 'photo', file, null, controller.signal, () => version === photoVersion, next => {
-    const fields = editableFields(next);
+    const fields = editableFields(next, photoFields);
     let applied = 0;
     for (const [field, value] of Object.entries(fields)) {
+      // Never replace an anonymous choice or apply names after attribution changes.
+      if (field === 'attributionName' && (attributionKind === 'anonymous'
+        || document.querySelector('[name="attributionKind"]:checked').value !== attributionKind)) continue;
       const input = document.querySelector(`#${field}`);
       if (input.value !== unchanged[field]) continue; // Keep edits made while the photo was processing.
       input.value = value; applied++;
