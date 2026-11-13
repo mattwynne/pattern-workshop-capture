@@ -57,6 +57,8 @@ Card photos and audio are held only in request memory while OpenRouter processes
 
 `POST /api/avatars/previews` accepts one multipart `avatar` (up to 16 MiB). It returns metadata-free WebP data URLs in `original` and optional `cleaned`, plus a `warning` if cleanup fails. Responses are not cacheable; the service retains no image state.
 
+Selecting or taking a picture also requests editable alt text from OpenRouter via `POST /api/avatars/description`. The app sends a metadata-free image and retains no server-side copy. Existing descriptions and edits made while waiting are preserved. Description failures never prevent writing one manually or choosing a picture.
+
 The browser defaults to the original, keeps both previews only in page memory for comparison, and sends **only the selected bytes** as the multipart `avatar` to `POST /api/patterns`, with reviewed `avatarAlt`. The server independently validates and normalizes that image before passing it to the publisher. There is no treatment flag or server-side preview token to expire. Reloading requires choosing the picture again. Raw and unselected images never enter the handbook bundle.
 
 Cleanup keeps the full frame and gently lifts the background. Automatic crop/deskew is deferred to avoid removing faint marks or changing intentionally slanted drawings; see the [Iteration 005 decision and validation record](docs/plans/005-publish-original-and-cleaned-diagrams.md).

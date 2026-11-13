@@ -7,12 +7,54 @@ export function setupAvatar() {
   const cleanedImage = document.querySelector('#avatar-cleaned');
   const originalRadio = document.querySelector('#avatar-original-choice');
   const cleanedRadio = document.querySelector('#avatar-cleaned-choice');
+  const alt = document.querySelector('#avatarAlt');
+  const altStatus = document.querySelector('#avatar-alt-status');
+  let descriptionController, suggestedAlt, editVersion = 0;
+  alt.addEventListener('input', () => { editVersion++; });
   let original, cleaned, pending = false, generation = 0;
   let urls = [];
   let controller;
 
+  function cancelDescription() {
+    descriptionController?.abort();
+    descriptionController = undefined;
+    altStatus.textContent = '';
+  }
+  async function describe(file, current) {
+    if (alt.value.trim()) return; // Keep descriptions already written by the contributor.
+    const edits = editVersion;
+    const request = new AbortController(); descriptionController = request;
+    const timeout = setTimeout(() => request.abort(), 70000);
+    altStatus.textContent = 'Suggesting a picture description… You can write your own while you wait.';
+    try {
+      const body = new FormData(); body.append('avatar', file);
+      const response = await fetch('/api/avatars/description', { method: 'POST', body, signal: request.signal });
+      const result = await response.json();
+      if (current !== generation || request.signal.aborted || edits !== editVersion) return;
+      if (!response.ok || typeof result.alt !== 'string' || !result.alt.trim()) throw new Error('No description');
+      suggestedAlt = result.alt.trim().slice(0, 240);
+      alt.value = suggestedAlt;
+      alt.dispatchEvent(new Event('input', { bubbles: true }));
+      altStatus.textContent = 'Description suggested. Check and edit it before publishing.';
+    } catch {
+      if (current === generation && descriptionController === request && edits === editVersion) {
+        altStatus.textContent = 'Could not suggest a description. Please describe the picture yourself.';
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (descriptionController === request) {
+        descriptionController = undefined;
+        if (edits !== editVersion && alt.value !== suggestedAlt) altStatus.textContent = '';
+      }
+    }
+  }
   function clear() {
     controller?.abort();
+    cancelDescription();
+    if (suggestedAlt !== undefined && alt.value === suggestedAlt) {
+      alt.value = ''; alt.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    suggestedAlt = undefined;
     for (const url of urls) URL.revokeObjectURL(url);
     urls = []; original = cleaned = undefined;
     originalImage.removeAttribute('src'); cleanedImage.removeAttribute('src');
@@ -33,6 +75,7 @@ export function setupAvatar() {
     status.textContent = file ? 'Preparing your picture… You can continue with the original if cleanup is unavailable.' : '';
     if (!file) return;
     original = file;
+    describe(file, current);
     const requestController = new AbortController();
     controller = requestController;
     const timeout = setTimeout(() => requestController.abort(), 30000);
@@ -41,7 +84,7 @@ export function setupAvatar() {
       const response = await fetch('/api/avatars/previews', { method: 'POST', body, signal: requestController.signal });
       const result = await response.json();
       if (!response.ok) {
-        if (response.status === 400 && current === generation) original = undefined;
+        if (response.status === 400 && current === generation) { original = undefined; cancelDescription(); }
         throw new Error(result.error || 'Preview unavailable');
       }
       const blobs = await Promise.all([fetch(result.original).then(r => r.blob()), result.cleaned ? fetch(result.cleaned).then(r => r.blob()) : undefined]);
@@ -90,6 +133,7 @@ export function setupAvatar() {
     selected: () => cleanedRadio.checked && cleaned ? cleaned : original,
     validate() { if (pending) throw new Error('Your picture is still being prepared. Wait a moment or remove it.'); },
     review(image, alt) {
+      cancelDescription(); // A late suggestion must not change text after review begins.
       image.hidden = !original;
       if (original) { image.src = cleanedRadio.checked && cleaned ? cleanedImage.src : originalImage.src; image.alt = alt; }
     },

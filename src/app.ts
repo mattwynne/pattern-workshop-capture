@@ -95,6 +95,27 @@ export function createApp(publisher: PatternPublisher, board = new DraftBoard(),
       response.status(400).json({ error: error instanceof Error ? error.message : "Choose another image" });
     }
   });
+  app.post("/api/avatars/description", upload.single("avatar"), async (request, response) => {
+    if (!ai) return response.status(503).json({ error: "Automatic descriptions are unavailable. Please describe the picture yourself." });
+    if (!request.file) return response.status(400).json({ error: "Choose a picture first" });
+    const controller = new AbortController();
+    const cancel = () => { if (!response.writableEnded) controller.abort(); };
+    response.on("close", cancel);
+    try {
+      let image;
+      try {
+        image = await normalizeAvatar(request.file.buffer, request.file.mimetype);
+      } catch (error) {
+        return response.status(400).json({ error: error instanceof Error ? error.message : "Choose another image" });
+      }
+      response.json({ alt: await ai.describePicture(image.bytes, controller.signal) });
+    } catch {
+      if (!response.destroyed) response.status(502).json({ error: "Could not suggest a description. Please describe the picture yourself." });
+    } finally {
+      response.off("close", cancel);
+      request.file.buffer = Buffer.alloc(0);
+    }
+  });
   app.post("/api/patterns", upload.single("avatar"), async (request, response) => {
     let validated = false;
     let activeId: string | undefined;

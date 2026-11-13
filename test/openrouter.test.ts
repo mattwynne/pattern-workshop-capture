@@ -57,6 +57,42 @@ for (const picture of [undefined, null, 'a drawing', {},
   assert.equal(result.picture, undefined);
 });
 
+test("suggests concise alt text using the vision model and a metadata-free picture", async () => {
+  let body: any;
+  const source = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: "white" } }).withMetadata().png().toBuffer();
+  const ai = new OpenRouter("secret", "vision-model", undefined, undefined, (async (_input, init) => {
+    body = JSON.parse(String(init?.body));
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ avatarAlt: `  ${"a".repeat(250)}  `, name: "Ignore this" }) } }] });
+  }) as typeof fetch);
+  assert.equal(await ai.describePicture(source), "a".repeat(240));
+  assert.equal(body.model, "vision-model");
+  assert.deepEqual(Object.keys(body.response_format.json_schema.schema.properties), ["avatarAlt"]);
+  assert.match(body.messages[0].content[0].text, /do not infer identities/i);
+  const encoded = body.messages[0].content[1].image_url.url.split(',')[1];
+  const metadata = await sharp(Buffer.from(encoded, 'base64')).metadata();
+  assert.equal(metadata.format, 'webp'); assert.equal(metadata.width, 1800); assert.equal(metadata.exif, undefined);
+});
+
+for (const avatarAlt of [undefined, '', '   ', 123, ['A drawing']]) {
+  test(`rejects unusable picture descriptions: ${JSON.stringify(avatarAlt)}`, async () => {
+    const source = await sharp({ create: { width: 20, height: 10, channels: 3, background: 'white' } }).png().toBuffer();
+    const ai = new OpenRouter('secret', undefined, undefined, undefined, (async () =>
+      Response.json({ choices: [{ message: { content: JSON.stringify({ avatarAlt }) } }] })) as typeof fetch);
+    await assert.rejects(ai.describePicture(source), /no picture description/);
+  });
+}
+
+test("picture description propagates provider failures and cancellation", async () => {
+  const source = await sharp({ create: { width: 20, height: 10, channels: 3, background: 'white' } }).png().toBuffer();
+  const failure = new OpenRouter('secret', undefined, undefined, undefined, (async () => new Response('', { status: 503 })) as typeof fetch);
+  await assert.rejects(failure.describePicture(source), /503/);
+  const controller = new AbortController(); controller.abort();
+  const cancelled = new OpenRouter('secret', undefined, undefined, undefined, (async (_input, init) => {
+    init?.signal?.throwIfAborted(); throw new Error('Expected an aborted signal');
+  }) as typeof fetch);
+  await assert.rejects(cancelled.describePicture(source, controller.signal), /abort/i);
+});
+
 test("transcribes speech then produces editable suggestions", async () => {
   const responses = [
     Response.json({ text: "We take turns holding the pen." }),

@@ -116,6 +116,93 @@ test('late preview cannot restore removed media, and publication failure keeps s
   await expect(page.locator('#result-step')).toBeVisible(); expect(published).toHaveLength(1);
 });
 
+for (const input of ['avatar', 'avatar-camera']) {
+  test(`${input} suggests an editable description that is reviewed and published`, async ({ page }) => {
+    await page.route('**/api/avatars/description', route => route.fulfill({ json: { alt: 'Two boxes connected by an arrow' } }));
+    await page.locator(`#${input}`).setInputFiles({ name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
+    await expect(page.locator('#avatarAlt')).toHaveValue('Two boxes connected by an arrow');
+    await expect(page.locator('#avatar-alt-status')).toContainText('Check and edit');
+    await expect(page.locator('#avatar-cleaned-choice')).toBeEnabled();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('pattern-workshop-draft')!).avatarAlt)).toBe('Two boxes connected by an arrow');
+    await page.locator('#avatarAlt').fill('Our drawing of two boxes and an arrow');
+    await page.getByRole('button', { name: 'Review pattern', exact: true }).click();
+    await expect(page.locator('#review-avatar')).toHaveAttribute('alt', 'Our drawing of two boxes and an arrow');
+    await page.getByRole('button', { name: 'Publish to handbook', exact: true }).click();
+    await expect(page.locator('#result-step')).toBeVisible();
+    expect(published[0][0].avatarAlt).toBe('Our drawing of two boxes and an arrow');
+  });
+}
+
+test('description failure does not prevent manual description or picture publication', async ({ page }) => {
+  await page.route('**/api/avatars/description', route => route.fulfill({ status: 502, json: { error: 'Unavailable' } }));
+  await page.locator('#avatar').setInputFiles({ name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('pencil') });
+  await expect(page.locator('#avatar-alt-status')).toContainText('describe the picture yourself');
+  await expect(page.locator('#avatar-cleaned-choice')).toBeEnabled();
+  await page.getByRole('button', { name: 'Review pattern', exact: true }).click();
+  await expect(page.locator('#error')).toContainText('add a short description');
+  await page.locator('#avatarAlt').fill('Pencil boxes');
+  await page.getByRole('button', { name: 'Review pattern', exact: true }).click();
+  await page.getByRole('button', { name: 'Publish to handbook', exact: true }).click();
+  await expect(page.locator('#result-step')).toBeVisible();
+});
+
+test('a description never replaces text edited while generation is pending', async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/avatars/description', async route => {
+    await gate; await route.fulfill({ json: { alt: 'Late suggestion' } });
+  });
+  await page.locator('#avatar').setInputFiles({ name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('marker') });
+  await expect(page.locator('#avatar-alt-status')).toContainText('Suggesting');
+  await page.locator('#avatarAlt').fill('My description');
+  // Even changing back to empty is a deliberate edit, not permission to overwrite.
+  await page.locator('#avatarAlt').fill('');
+  release();
+  await expect(page.locator('#avatar-alt-status')).toBeEmpty();
+  await expect(page.locator('#avatarAlt')).toHaveValue('');
+});
+
+test('replacement clears an old automatic description but preserves a written one', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/avatars/description', route => route.fulfill({ json: { alt: `Drawing ${++calls}` } }));
+  const picture = { name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('marker') };
+  await page.locator('#avatar').setInputFiles(picture);
+  await expect(page.locator('#avatarAlt')).toHaveValue('Drawing 1');
+  await page.locator('#avatar-camera').setInputFiles(picture);
+  await expect(page.locator('#avatarAlt')).toHaveValue('Drawing 2');
+  await page.locator('#avatarAlt').fill('My own words');
+  await page.locator('#avatar').setInputFiles(picture);
+  await expect(page.locator('#avatar-cleaned-choice')).toBeEnabled();
+  await expect(page.locator('#avatarAlt')).toHaveValue('My own words');
+  expect(calls).toBe(2);
+});
+
+test('late descriptions cannot return after removal or change reviewed text', async ({ page }) => {
+  await page.evaluate(() => {
+    const originalFetch = window.fetch.bind(window);
+    (window as any).descriptions = [];
+    window.fetch = (input, init) => String(input).endsWith('/api/avatars/description')
+      ? new Promise<Response>(resolve => (window as any).descriptions.push((alt: string) => resolve(Response.json({ alt }))))
+      : originalFetch(input, init);
+  });
+  const picture = { name: 'drawing.png', mimeType: 'image/png', buffer: await diagramFixture('marker') };
+  await page.locator('#avatar').setInputFiles(picture);
+  await expect(page.locator('#avatar-alt-status')).toContainText('Suggesting');
+  await page.getByRole('button', { name: 'Remove picture', exact: true }).click();
+  await page.evaluate(() => (window as any).descriptions[0]('Removed drawing'));
+  await expect(page.locator('#avatar-alt-status')).toBeEmpty();
+  await expect(page.locator('#avatarAlt')).toHaveValue('');
+  await page.locator('#avatar').setInputFiles(picture);
+  await expect(page.locator('#avatar-cleaned-choice')).toBeEnabled();
+  await page.locator('#avatarAlt').fill('Reviewed words');
+  await page.getByRole('button', { name: 'Review pattern', exact: true }).click();
+  await page.evaluate(() => (window as any).descriptions[1]('Too late'));
+  await expect(page.locator('#review-avatar')).toHaveAttribute('alt', 'Reviewed words');
+  await page.getByRole('button', { name: 'Publish to handbook', exact: true }).click();
+  await expect(page.locator('#result-step')).toBeVisible();
+  expect(published[0][0].avatarAlt).toBe('Reviewed words');
+});
+
 test('malformed image shows the server error and cannot leak into publication', async ({ page }) => {
   await page.locator('#avatar').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
   await expect(page.locator('#avatar-status')).toContainText('could not be read');
